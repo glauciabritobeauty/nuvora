@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Banner da tela inicial da TV (320x180): símbolo + "NUVORA" desenhado em traços. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:pathData="M0,0 H320 V180 H0 Z"
+        android:fillColor="@color/nuvora_background" />
+    <path
+        android:pathData="M39,106 L39,74 L71,106"
+        android:strokeWidth="7"
+        android:strokeColor="@color/nuvora_primary"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M71,106 L71,74"
+        android:strokeWidth="7"
+        android:strokeColor="@color/nuvora_violet"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M71,70 m-4,0 a4,4 0,1 1,8 0 a4,4 0,1 1,-8 0"
+        android:fillColor="@color/nuvora_accent" />
+    <path
+        android:pathData="M91,108 V72 L115,108 V72 M125,72 V96 A12,12 0 0 0 149,96 V72 M159,72 L171,108 L183,72 M193,90 A12,18 0 1 0 217,90 A12,18 0 1 0 193,90 M227,108 V72 H241 A9,9 0 0 1 241,90 H227 M239,90 L251,108 M261,108 L273,72 L285,108 M266,96 H280"
+        android:strokeWidth="4.5"
+        android:strokeColor="@color/nuvora_text"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

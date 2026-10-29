@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fundo escuro desde o primeiro quadro: evita o "piscar branco" ao abrir. -->
+    <style name="Theme.Nuvora" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/nuvora_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/nuvora_background</item>
+    </style>
+</resources>
