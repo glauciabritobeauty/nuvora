@@ -57,23 +57,19 @@ fun HeroBanner(
             .background(if (isTv) colors.background else colors.surface)
             .then(if (isTv) Modifier else Modifier.border(BorderStroke(1.dp, colors.outline), shape))
             .drawBehind {
+                // Cada "luz" some antes da borda do banner, para não aparecer corte reto.
+                val h = size.height
+                val blue = Offset(size.width - h * 0.6f, h * 0.42f)
+                val violet = Offset(size.width - h * 1.05f, h * 0.55f)
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(colors.primary.copy(alpha = 0.35f), Color.Transparent),
-                        center = Offset(size.width * 0.85f, size.height * 0.2f),
-                        radius = size.height * 0.9f,
-                    ),
-                    radius = size.height * 0.9f,
-                    center = Offset(size.width * 0.85f, size.height * 0.2f),
+                    brush = Brush.radialGradient(listOf(colors.primary.copy(alpha = 0.35f), Color.Transparent), blue, h * 0.55f),
+                    radius = h * 0.55f,
+                    center = blue,
                 )
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(colors.violet.copy(alpha = 0.40f), Color.Transparent),
-                        center = Offset(size.width * 0.72f, size.height * 0.45f),
-                        radius = size.height * 0.55f,
-                    ),
-                    radius = size.height * 0.55f,
-                    center = Offset(size.width * 0.72f, size.height * 0.45f),
+                    brush = Brush.radialGradient(listOf(colors.violet.copy(alpha = 0.40f), Color.Transparent), violet, h * 0.42f),
+                    radius = h * 0.42f,
+                    center = violet,
                 )
             },
     ) {
@@ -100,7 +96,8 @@ fun HeroBanner(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth(if (isTv) 0.55f else 1f)
-                .padding(if (isTv) 0.dp else 16.dp),
+                // Na TV, folga para o botão em foco crescer sem ser cortado.
+                .padding(if (isTv) 12.dp else 16.dp),
         ) {
             if (overline != null) {
                 NuvoraText(text = overline, style = typography.overline, color = colors.accent)

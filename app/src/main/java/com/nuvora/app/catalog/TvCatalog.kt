@@ -59,18 +59,18 @@ fun TvCatalog() {
             selectedKey = selectedMenu,
             onSelect = { selectedMenu = it.key; lastAction = it.label },
         )
+        Column(Modifier.weight(1f)) {
+        // Fica fixo no topo para mostrar que o OK do controle funcionou.
+        NuvoraText(
+            text = "Vitrine de componentes · Etapa 2 · último comando: $lastAction",
+            style = NuvoraTheme.typography.caption,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(start = 32.dp, top = dimens.screenPaddingV),
+        )
         LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 32.dp, end = dimens.screenPaddingH, top = dimens.screenPaddingV, bottom = dimens.screenPaddingV),
+            contentPadding = PaddingValues(start = 32.dp, end = dimens.screenPaddingH, top = 12.dp, bottom = dimens.screenPaddingV),
             verticalArrangement = Arrangement.spacedBy(dimens.sectionSpacing),
         ) {
-            item {
-                NuvoraText(
-                    text = "Vitrine de componentes · Etapa 2 · último comando: $lastAction",
-                    style = NuvoraTheme.typography.caption,
-                    color = colors.textSecondary,
-                )
-            }
             item {
                 HeroBanner(
                     title = "Título do conteúdo",
@@ -122,18 +122,19 @@ fun TvCatalog() {
             item { LoadingState() }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
-                    ErrorState(onRetry = { lastAction = "Tentar de novo" }, modifier = Modifier.width(300.dp))
-                    NoConnectionState(onRetry = { lastAction = "Tentar de novo (sem internet)" }, modifier = Modifier.width(300.dp))
+                    ErrorState(onRetry = { lastAction = "Tentar de novo" }, modifier = Modifier.weight(1f))
+                    NoConnectionState(onRetry = { lastAction = "Tentar de novo (sem internet)" }, modifier = Modifier.weight(1f))
                     EmptyState(
                         icon = NuvoraIcons.Source,
                         title = "Nenhuma fonte conectada",
                         message = "Conecte uma fonte de conteúdo autorizada para ver filmes e séries aqui.",
                         actionLabel = "Abrir ajustes",
                         onAction = { lastAction = "Abrir ajustes" },
-                        modifier = Modifier.width(300.dp),
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
+        }
         }
     }
 

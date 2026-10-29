@@ -31,7 +31,7 @@ if [ "$NAME" = "tv" ]; then
   for i in 1 2 3 4 5 6; do adb shell input keyevent KEYCODE_DPAD_LEFT; done
   sleep 2; shot 7-menu-lateral
 else
-  adb shell input tap 220 790; sleep 2; shot 2-toque-assistir
+  adb shell input tap 234 866; sleep 2; shot 2-toque-assistir
   for i in 3 4 5 6; do
     adb shell input swipe 540 1800 540 700 500
     sleep 2
