@@ -62,6 +62,28 @@ object NuvoraIcons {
     }
     val ChevronRight by lazy { icon("chevron_right", filled = false, "M9 6l6 6l-6 6") }
     val ChevronLeft by lazy { icon("chevron_left", filled = false, "M15 6l-6 6l6 6") }
+    val Pause by lazy { icon("pause", filled = true, "M6 5h4v14H6z", "M14 5h4v14h-4z") }
+    val Rewind by lazy { icon("rewind", filled = false, "M11 7l-5 5l5 5", "M18 7l-5 5l5 5") }
+    val Forward by lazy { icon("forward", filled = false, "M13 7l5 5l-5 5", "M6 7l5 5l-5 5") }
+    val Subtitles by lazy {
+        icon(
+            "subtitles", filled = false,
+            "M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2z",
+            "M7 15h4", "M15 15h2", "M7 11h2", "M13 11h4",
+        )
+    }
+    val Audio by lazy {
+        icon(
+            "audio", filled = false,
+            "M6 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+            "M16 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+            "M9 17V4h10v13", "M9 8h10",
+        )
+    }
+    val VolumeDown by lazy { icon("volume_down", filled = false, SPEAKER, "M16 12h5") }
+    val VolumeUp by lazy { icon("volume_up", filled = false, SPEAKER, "M16 12h5", "M18.5 9.5v5") }
+
+    private const val SPEAKER = "M6 15H4a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l3.5 -4.5A0.8 0.8 0 0 1 11 5v14a0.8 0.8 0 0 1 -1.5 0.5L6 15"
 
     private const val HEART = "M19.5 12.57L12 20l-7.5 -7.43A5 5 0 1 1 12 6.01a5 5 0 1 1 7.5 6.57z"
 

@@ -96,6 +96,32 @@ EOF
 # que às vezes cobrem a tela e atrapalham o teste. Travamentos do NUVORA continuam no registro de erros.
 adb shell settings put global hide_error_dialogs 1
 
+# Memória total do app (PSS, em KB).
+total_pss() { adb shell dumpsys meminfo "$PKG" | grep "TOTAL PSS" | awk '{print $3}'; }
+
+# Lê o relógio do player ("Tempo atual 1:23") e devolve em segundos; vazio se os controles não estiverem na tela.
+read_time() {
+  read_ui
+  python3 - <<'EOF2'
+import re
+m = re.search(r'content-desc="Tempo atual ([0-9:]+)"', open('ui.xml', encoding='utf-8').read())
+if m:
+    t = 0
+    for part in m.group(1).split(':'):
+        t = t * 60 + int(part)
+    print(t)
+EOF2
+}
+
+# Registra se o vídeo andou entre duas leituras do relógio.
+check_advanced() {
+  if [ -n "$1" ] && [ -n "$2" ] && [ "$2" -gt "$1" ]; then
+    echo "ok: vídeo andou ($3): ${1}s -> ${2}s" >> "$STEPS"
+  else
+    echo "FALHOU: vídeo não andou ($3): '${1}' -> '${2}'" >> "$STEPS"
+  fi
+}
+
 adb install -r apk/*.apk
 adb logcat -c
 
@@ -159,6 +185,20 @@ EOF
   key $U; key $U; focus "20. botão Limpar histórico"; key $OK; sleep 1; focus "21. confirmação abre no Cancelar"
   key $U; key $OK; sleep 2
   check_text "Nada assistido ainda" sim; shot 14-historico-limpo
+
+  # Etapa 6: player pelo controle.
+  key $BACK; key $U; key $U; key $OK; sleep 2; focus "22. Início pelo menu"
+  MEM_ANTES=$(total_pss)
+  key $OK; sleep 15; shot 15-player-tocando
+  key $U; T1=$(read_time); focus "23. seta mostra controles (foco no tocar/pausar)"; shot 16-player-controles
+  sleep 7; key $U; T2=$(read_time); check_advanced "$T1" "$T2" "TV"
+  sleep 6; key $R; sleep 1; T3=$(read_time); check_advanced "$T2" "$T3" "TV, seta direita avança"
+  key $BACK; sleep 1; check_text "Tempo atual" nao
+  key $BACK; sleep 3; focus "24. Voltar sai do player e volta à Home"; shot 17-voltou-home
+  check_text "Destaque de exemplo 1" sim
+  for i in 1 2 3; do key $OK; sleep 8; key $BACK; key $BACK; sleep 3; done
+  sleep 5; MEM_DEPOIS=$(total_pss)
+  echo "memória (KB) antes do player: $MEM_ANTES; depois de 4 entradas e saídas: $MEM_DEPOIS" >> "$STEPS"
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -209,6 +249,30 @@ else
   tap_text "Ver demonstração"
   tap_tab "Favoritos" 3
   check_text "Destaque de exemplo 1" sim; shot 17-favorito-depois-de-fechar
+
+  # Etapa 6: player no celular/tablet.
+  C=$(( (W < H ? W : H) / 2 ))
+  show_controls() { if [ -z "$(read_time)" ]; then adb shell input tap $C $C; sleep 1; fi; }
+  tap_tab "Início" 1
+  MEM_ANTES=$(total_pss)
+  tap_text "Assistir"; sleep 15; shot 18-player-tocando
+  adb shell input tap $C $C; sleep 1; T1=$(read_time); shot 19-player-controles
+  sleep 6; adb shell input tap $C $C; sleep 1; T2=$(read_time); check_advanced "$T1" "$T2" "celular"
+  show_controls; tap_text "Áudio"; shot 20-opcoes-audio; tap_text "Fechar"
+  show_controls; tap_text "Legendas"; shot 21-opcoes-legendas; tap_text "Inglês"; sleep 8; shot 22-com-legenda
+  # Queda de internet no meio do vídeo e volta.
+  adb shell cmd connectivity airplane-mode enable; sleep 75; shot 23-sem-internet
+  check_text "A conexão caiu" sim
+  adb shell cmd connectivity airplane-mode disable; sleep 30; shot 24-internet-voltou
+  check_text "A conexão caiu" nao
+  show_controls; T3=$(read_time); sleep 6; show_controls; T4=$(read_time); check_advanced "$T3" "$T4" "depois que a internet voltou"
+  key KEYCODE_BACK; sleep 3; shot 25-voltou-home
+  check_text "Assistir" sim
+  tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 26-historico-apos-assistir
+  tap_tab "Início" 1
+  for i in 1 2 3; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
+  sleep 5; MEM_DEPOIS=$(total_pss)
+  echo "memória (KB) antes do player: $MEM_ANTES; depois de 4 entradas e saídas: $MEM_DEPOIS" >> "$STEPS"
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

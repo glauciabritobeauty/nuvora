@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nuvora.core.data.NuvoraViewModel
 import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.designsystem.components.BottomNavBar
 import com.nuvora.designsystem.components.DialogAction
@@ -74,11 +76,30 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     var section by rememberSaveable { mutableStateOf<HomeSection?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var options by remember { mutableStateOf<ItemOptions?>(null) }
+    var playingId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
+    val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
 
     val content = (state.home as? HomeUiState.Content)?.content
-    val openItem: (String) -> Unit = {
-        Toast.makeText(context, "Demonstração: a reprodução chega na Etapa 6.", Toast.LENGTH_SHORT).show()
+    val openItem: (String) -> Unit = { id ->
+        if (viewModel.playbackFor(id) != null) {
+            playingId = id
+        } else {
+            Toast.makeText(context, "Este item não tem vídeo disponível na fonte.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val playing = playingId?.let(viewModel::playbackFor)
+    if (playing != null) {
+        val start = remember(playing.id) { viewModel.resumePositionFor(playing.id) }
+        NuvoraPlayerScreen(
+            request = playing,
+            startPositionMs = start,
+            onSaveProgress = { position, duration -> viewModel.saveProgress(playing, position, duration) },
+            onClose = { playingId = null },
+        )
+        return
     }
     val showOptions: (CardItem, HomeSection) -> Unit = { item, from ->
         options = ItemOptions(item, fromHistory = from != HomeSection.Favorites)
@@ -90,6 +111,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         if (section != null) section = null else tab = Tab.Home
     }
 
+    screens.SaveableStateProvider("app") {
     Column(Modifier.fillMaxSize().background(colors.background)) {
         Box(
             Modifier
@@ -186,6 +208,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 tab = Tab.entries.first { it.item.key == selected.key }
             },
         )
+    }
     }
 
     options?.let { (item, fromHistory) ->

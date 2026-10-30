@@ -20,8 +20,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 4 | Home específica para Android TV | **Aprovada** em 31/10/2026 ("Pode avançar"). TV real não testada (TV da Glaucia é Roku) |
-| 5 | Navegação e gerenciamento de estado | Entregue em 31/10/2026 — **aguardando aprovação** |
-| 6 | Player (Media3) | Não iniciada |
+| 5 | Navegação e gerenciamento de estado | **Aprovada** em 31/10/2026 ("Pode avançar") |
+| 6 | Player (Media3) | Em andamento (iniciada em 31/10/2026). Vídeos públicos de teste autorizados pela Glaucia (só na versão de teste) |
 | 7 | Integração com fontes autorizadas | Não iniciada |
 | 8 | Otimização de desempenho e memória | Não iniciada |
 | 9 | Testes e correções | Não iniciada |
@@ -282,4 +282,4 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 5. Informar modelo e versão do Android da TV, do celular e do tablet (define a versão mínima do Android e os aparelhos de referência).
 8. Testar o APK da Etapa 2 no celular, tablet e TV reais e aprovar (ou pedir ajustes) no visual.
 9. Identificador do app (`com.nuvora.app`) — pode ser trocado agora sem custo; depois de publicado na Play Store fica permanente.
-6. Para testes do player antes da fonte real: autorizar o uso de vídeos públicos de teste (ex.: os exemplos oficiais de HLS/DASH do Google), sempre identificados como "Conteúdo de teste".
+6. ~~Vídeos públicos de teste~~ — autorizado em 31/10/2026. (Texto original: autorizar o uso de vídeos públicos de teste (ex.: os exemplos oficiais de HLS/DASH do Google), sempre identificados como "Conteúdo de teste".

@@ -12,6 +12,7 @@ import com.nuvora.core.data.library.WatchProgress
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HomeContent
 import com.nuvora.core.data.model.HomeUiState
+import com.nuvora.core.data.model.PlaybackRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +86,23 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { library.clearHistory() }
     }
 
+    /** O que tocar para este item, ou null se não houver fonte para ele. */
+    fun playbackFor(id: String): PlaybackRequest? = DemoContent.playbackFor(id)
+
+    /** De onde continuar: a posição salva, se a pessoa parou no meio; senão, do início. */
+    fun resumePositionFor(id: String): Long =
+        library.history.value.firstOrNull { it.id == id }?.takeIf(WatchProgress::isUnfinished)?.positionMs ?: 0L
+
+    /** Chamado pelo player a cada 10 s e ao sair. */
+    fun saveProgress(request: PlaybackRequest, positionMs: Long, durationMs: Long) {
+        if (durationMs <= 0) return
+        viewModelScope.launch {
+            library.saveProgress(
+                listOf(HistoryEntry(request.id, request.title, request.imageUrl, positionMs, durationMs, System.currentTimeMillis())),
+            )
+        }
+    }
+
     fun search(query: String): List<CardItem> =
         if (query.isBlank()) emptyList() else state.value.catalog.filter { it.title.contains(query.trim(), ignoreCase = true) }
 
@@ -100,7 +118,8 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         val favoriteCards = favorites.filter { visible(it.id) }.map { CardItem(it.id, it.title, it.imageUrl) }
         val visibleHistory = history.filter { visible(it.id) }
         val historyCards = visibleHistory.map {
-            CardItem(it.id, it.title, it.imageUrl, caption = if (WatchProgress.isUnfinished(it)) WatchProgress.remainingLabel(it) else "Assistido")
+            val finished = WatchProgress.fraction(it) > WatchProgress.MAX_FRACTION
+            CardItem(it.id, it.title, it.imageUrl, caption = if (finished) "Assistido" else WatchProgress.remainingLabel(it))
         }
         val continueCards = visibleHistory.filter(WatchProgress::isUnfinished).map {
             CardItem(it.id, it.title, it.imageUrl, caption = WatchProgress.remainingLabel(it), progress = WatchProgress.fraction(it))

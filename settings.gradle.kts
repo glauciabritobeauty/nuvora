@@ -19,5 +19,6 @@ rootProject.name = "nuvora"
 include(":app")
 include(":core:designsystem")
 include(":core:data")
+include(":core:player")
 include(":feature:mobile")
 include(":feature:tv")

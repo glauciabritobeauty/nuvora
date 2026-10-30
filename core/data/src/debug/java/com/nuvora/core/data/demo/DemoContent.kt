@@ -3,6 +3,7 @@ package com.nuvora.core.data.demo
 import com.nuvora.core.data.library.HistoryEntry
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HeroItem
+import com.nuvora.core.data.model.PlaybackRequest
 
 /**
  * Demonstração do layout, SÓ na versão de teste (debug).
@@ -48,5 +49,32 @@ object DemoContent {
                 updatedAt = now - i * minute,
             )
         }
+    }
+
+    /**
+     * Vídeos públicos de teste para desenvolvedores (autorizados pela Glaucia em 31/10/2026).
+     * HLS da Apple (com legenda e 3 opções de áudio), DASH do Google (curta "Tears of Steel", licença aberta)
+     * e um MP4 de 10 segundos ("Big Buck Bunny", licença aberta).
+     */
+    private val testStreams = listOf(
+        Triple(
+            "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
+            "application/x-mpegURL",
+            "Vídeo de teste · HLS com legenda e opções de áudio",
+        ),
+        Triple("https://storage.googleapis.com/wvmedia/clear/h264/tears/tears.mpd", "application/dash+xml", "Vídeo de teste · DASH"),
+        Triple(
+            "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
+            "video/mp4",
+            "Vídeo de teste · MP4 de 10 segundos",
+        ),
+    )
+
+    /** Exemplo 1, 4, 7... e os destaques tocam o HLS; Exemplo 2, 5... o DASH; Exemplo 3, 6... o MP4. */
+    fun playbackFor(id: String): PlaybackRequest? {
+        val title = items.firstOrNull { it.id == id }?.title ?: hero.firstOrNull { it.id == id }?.title ?: return null
+        val index = id.removePrefix(ID_PREFIX).toIntOrNull()?.minus(1) ?: 0
+        val (url, mime, label) = testStreams[index % testStreams.size]
+        return PlaybackRequest(id = id, title = title, subtitle = label, url = url, mimeType = mime, imageUrl = null)
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -21,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nuvora.core.data.NuvoraViewModel
 import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
 import com.nuvora.designsystem.components.NuvoraButtonStyle
@@ -62,11 +64,30 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuFocused by remember { mutableStateOf(false) }
     var options by remember { mutableStateOf<ItemOptions?>(null) }
+    var playingId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
+    val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
     val menuFocus = remember { FocusRequester() }
 
-    val openItem: (String) -> Unit = {
-        Toast.makeText(context, "Demonstração: a reprodução chega na Etapa 6.", Toast.LENGTH_SHORT).show()
+    val openItem: (String) -> Unit = { id ->
+        if (viewModel.playbackFor(id) != null) {
+            playingId = id
+        } else {
+            Toast.makeText(context, "Este item não tem vídeo disponível na fonte.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val playing = playingId?.let(viewModel::playbackFor)
+    if (playing != null) {
+        val start = remember(playing.id) { viewModel.resumePositionFor(playing.id) }
+        NuvoraPlayerScreen(
+            request = playing,
+            startPositionMs = start,
+            onSaveProgress = { position, duration -> viewModel.saveProgress(playing, position, duration) },
+            onClose = { playingId = null },
+        )
+        return
     }
     val showOptions: (CardItem, Boolean) -> Unit = { item, fromHistory -> options = ItemOptions(item, fromHistory) }
 
@@ -78,6 +99,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         }
     }
 
+    screens.SaveableStateProvider("app") {
     Row(Modifier.fillMaxSize().background(colors.background)) {
         TvSideMenu(
             items = MENU.map { it.item },
@@ -147,6 +169,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 )
             }
         }
+    }
     }
 
     options?.let { (item, fromHistory) ->

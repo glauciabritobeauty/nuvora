@@ -11,8 +11,8 @@ android {
         applicationId = "com.nuvora.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
 
     // Chave fixa das versões de teste (vem dos segredos do GitHub na compilação na nuvem).
