@@ -46,6 +46,7 @@ EOF
     echo "ok: tocou em '$1'" >> "$STEPS"
   else
     echo "FALHOU: não achou '$1'" >> "$STEPS"
+    cp ui.xml "$OUT/$NAME-leitura-falhou-$(echo "$1" | tr -dc 'a-zA-Z').xml" 2> /dev/null || true
   fi
   sleep 2
 }
