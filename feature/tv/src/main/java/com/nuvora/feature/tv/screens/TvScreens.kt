@@ -20,7 +20,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -238,10 +240,14 @@ fun TvSettingsScreen(
     onChangeSubtitles: () -> Unit,
     largeText: Boolean,
     onToggleLargeText: () -> Unit,
+    sourcesContent: @Composable () -> Unit,
 ) {
     TvScreen("Ajustes") {
-        Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+        Column(
+            Modifier.widthIn(max = 640.dp).verticalScroll(rememberScrollState()).padding(bottom = 27.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            sourcesContent()
             InfoRow(
                 if (largeText) "Letra maior: ligada" else "Letra maior: desligada",
                 "Aumenta todos os textos do aplicativo.",

@@ -41,6 +41,13 @@ if achados:
     print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
 EOF
 )
+  if [ -z "$pos" ] && [ "${2:-}" != "sem-rolar" ] && [ "${NAME}" != "tv" ] && [ "${TRIED_SCROLL:-0}" -lt 3 ]; then
+    # Pode estar mais para baixo na tela: rola um pouco e tenta de novo (até 3 vezes).
+    TRIED_SCROLL=$(( ${TRIED_SCROLL:-0} + 1 ))
+    adb shell input swipe 500 1500 500 900 400; sleep 1
+    tap_text "$1"; local r=$?; TRIED_SCROLL=0; return $r
+  fi
+  TRIED_SCROLL=0
   if [ -n "$pos" ]; then
     adb shell input tap $pos
     echo "ok: tocou em '$1'" >> "$STEPS"
@@ -155,6 +162,20 @@ check_log() {
 last_pos() { plog | grep -o 'posicao=[0-9]*' | tail -1 | cut -d= -f2; }
 check_playing() { local a b; a=$(last_pos); sleep 7; b=$(last_pos); check_advanced "$a" "$b" "$1"; }
 
+# Apaga o texto do campo em foco.
+clear_field() { adb shell input keyevent KEYCODE_MOVE_END; for i in $(seq 1 40); do adb shell input keyevent KEYCODE_DEL; done; }
+
+# Espera um texto aparecer na tela (até N segundos).
+wait_text() {
+  local limite=$2 t=0
+  while [ $t -lt "$limite" ]; do
+    read_ui
+    if grep -qF "text=\"$1\"" ui.xml || grep -qF "content-desc=\"$1\"" ui.xml; then echo "ok: '$1' apareceu em ~${t}s" >> "$STEPS"; return 0; fi
+    sleep 5; t=$((t + 5))
+  done
+  echo "FALHOU: '$1' não apareceu em ${limite}s" >> "$STEPS"
+}
+
 adb install -r apk/*.apk
 adb logcat -c
 
@@ -264,6 +285,24 @@ EOF
   for i in 1 2 3; do key $OK; sleep 8; adb logcat -c; for j in 1 2 3; do key $BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done; sleep 2; done
   MEM_4=$(total_pss)
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
+
+  # Etapa 7 (Parte 1): adicionar lista por link só com o controle.
+  focus_until() {  # aperta a tecla $2 até o foco conter o texto $1 (até 10 vezes)
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if echo "$LAST_FOCUS" | grep -qF "$1"; then return 0; fi
+      key "$2"; focus "  procurando '$1'"
+    done
+  }
+  key $BACK; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
+  key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $D; key $OK; sleep 2
+  focus "33. tela Adicionar lista"; focus_until "Minha lista" $D
+  key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
+  focus_until "http://" $D; key $OK; sleep 2; adb shell input text "http://10.0.2.2:8000/teste.m3u"; key $BACK
+  focus_until "Tenho direito" $D; key $OK
+  focus_until "Testar e salvar" $D; key $OK
+  wait_text "Pronto! 4 itens encontrados." 30; shot 20-lista-adicionada-tv
+  focus_until "Ir para o Início" $D; key $OK; sleep 3
+  check_text "Filmes de teste" sim; shot 21-home-com-lista-tv
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -273,7 +312,7 @@ else
   tap_tab() {
     local before
     before=$(grep -c FALHOU "$STEPS" 2> /dev/null || true)
-    tap_text "$1"
+    tap_text "$1" sem-rolar
     if [ "$(grep -c FALHOU "$STEPS" 2> /dev/null || true)" != "$before" ]; then
       adb shell input tap $((W * (2 * $2 - 1) / 10)) $((H - H * 10 / 100))
       echo "  -> tocou em '$1' pela posição" >> "$STEPS"
@@ -352,6 +391,36 @@ else
   # Letra maior (Ajustes).
   tap_tab "Ajustes" 5; tap_text "Ligar letra maior"; check_text "Letra maior: ligada" sim; shot 28-ajustes-letra-maior
   tap_tab "Início" 1; shot 29-home-letra-maior
+
+  # Etapa 7 (Parte 1): listas por link.
+  tap_tab "Ajustes" 5; tap_text "Voltar ao tamanho normal"; tap_text "Desligar demonstração"
+  add_link() {
+    tap_tab "Ajustes" 5; tap_text "Adicionar lista"; tap_text "Link da lista"
+    tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
+    tap_text "http://..."; adb shell input text "$2"; key KEYCODE_BACK
+    tap_text "Tenho direito de acesso a este conteúdo."
+    tap_text "Testar e salvar"
+  }
+  add_link "Lista%sde%steste" "http://10.0.2.2:8000/teste.m3u"
+  wait_text "Pronto! 4 itens encontrados." 30; shot 30-lista-adicionada
+  tap_text "Ir para o Início"; sleep 3; check_text "Filmes de teste" sim; shot 31-home-com-lista
+  adb logcat -c; tap_text "Assistir"; sleep 15
+  check_log "aberto id=f1-0"; check_playing "item da lista M3U"; key KEYCODE_BACK; sleep 3
+  # Lista gigante (20.000 itens): tempo de importação e memória.
+  MEM_ANTES_LISTA=$(total_pss)
+  adb logcat -c
+  add_link "Lista%sgigante" "http://10.0.2.2:8000/gigante.m3u"
+  wait_text "Pronto! 20.000 itens encontrados." 180; shot 32-lista-gigante
+  adb logcat -d -s NuvoraFontes:I | sed 's/.*NuvoraFontes: /  importação: /' >> "$STEPS"
+  tap_text "Ir para o Início"; sleep 5; shot 33-home-lista-gigante
+  MEM_DEPOIS_LISTA=$(total_pss)
+  echo "memória (KB) com a lista de 4 itens: $MEM_ANTES_LISTA; depois de importar 20.000 itens e abrir a Home: $MEM_DEPOIS_LISTA" >> "$STEPS"
+  tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; clear_field; adb shell input text "Item%s19999"; key KEYCODE_BACK
+  sleep 2; check_text "Item 19999" sim; shot 34-busca-lista-gigante
+  # Link errado: mensagem clara.
+  add_link "Lista%serrada" "http://10.0.2.2:8000/nao-existe.m3u"
+  wait_text "Não encontramos a lista nesse endereço. Confira o link." 30; shot 35-link-errado
+  key KEYCODE_BACK
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

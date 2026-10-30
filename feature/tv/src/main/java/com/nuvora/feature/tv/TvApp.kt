@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -24,6 +25,8 @@ import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
+import com.nuvora.feature.sources.AddSourceScreen
+import com.nuvora.feature.sources.SourcesSection
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
 import com.nuvora.designsystem.components.NuvoraButtonStyle
@@ -67,30 +70,29 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuFocused by remember { mutableStateOf(false) }
     var options by remember { mutableStateOf<ItemOptions?>(null) }
-    var playingId by rememberSaveable { mutableStateOf<String?>(null) }
+    var addingSource by rememberSaveable { mutableStateOf(false) }
     // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
     val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
     var choosingSubtitles by remember { mutableStateOf(false) }
     val menuFocus = remember { FocusRequester() }
 
+    val sources by viewModel.sources.collectAsStateWithLifecycle()
     val openItem: (String) -> Unit = { id ->
-        if (viewModel.playbackFor(id) != null) {
-            playingId = id
-        } else {
+        viewModel.play(id) {
             Toast.makeText(context, "Este item não tem vídeo disponível na fonte.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    val playing = playingId?.let(viewModel::playbackFor)
-    if (playing != null) {
-        val start = remember(playing.id) { viewModel.resumePositionFor(playing.id) }
+    val playing by viewModel.playing.collectAsStateWithLifecycle()
+    playing?.let { request ->
+        val start = remember(request.id) { viewModel.resumePositionFor(request.id) }
         NuvoraPlayerScreen(
-            request = playing,
+            request = request,
             startPositionMs = start,
             subtitleMode = subtitleMode,
-            onSaveProgress = { position, duration -> viewModel.saveProgress(playing, position, duration) },
-            onClose = { playingId = null },
+            onSaveProgress = { position, duration -> viewModel.saveProgress(request, position, duration) },
+            onClose = viewModel::closePlayer,
         )
         return
     }
@@ -115,6 +117,15 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             modifier = Modifier.onFocusChanged { menuFocused = it.hasFocus },
         )
         Box(Modifier.weight(1f)) {
+            if (addingSource) {
+                AddSourceScreen(
+                    onSaveLink = viewModel::addLinkSource,
+                    onSaveFile = viewModel::addFileSource,
+                    onFinished = { addingSource = false; tab = TvTab.Home },
+                    onBack = { addingSource = false },
+                )
+                return@Box
+            }
             when (tab) {
                 TvTab.Home -> TvHomeScreen(
                     state = state.home,
@@ -133,7 +144,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     query = query,
                     onQueryChange = { query = it },
                     hasSource = state.hasSource,
-                    results = remember(query, state.catalog) { viewModel.search(query) },
+                    results = produceState(emptyList<CardItem>(), query, state.catalog) { value = viewModel.search(query) }.value,
                     onOpen = openItem,
                     onOpenSettings = { tab = TvTab.Settings },
                 )
@@ -175,6 +186,14 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     onChangeSubtitles = { choosingSubtitles = true },
                     largeText = largeText,
                     onToggleLargeText = { viewModel.setLargeText(!largeText) },
+                    sourcesContent = {
+                        SourcesSection(
+                            sources = sources,
+                            onAdd = { addingSource = true },
+                            onRefresh = viewModel::refreshSource,
+                            onRemove = viewModel::removeSource,
+                        )
+                    },
                 )
             }
         }

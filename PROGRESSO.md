@@ -21,8 +21,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 4 | Home específica para Android TV | **Aprovada** em 31/10/2026 ("Pode avançar"). TV real não testada (TV da Glaucia é Roku) |
 | 5 | Navegação e gerenciamento de estado | **Aprovada** em 31/10/2026 ("Pode avançar") |
-| 6 | Player (Media3) | Entregue em 31/10/2026 — **aguardando aprovação** |
-| 7 | Integração com fontes autorizadas | Não iniciada |
+| 6 | Player (Media3) | **Aprovada** em 31/10/2026 ("Pode avançar") |
+| 7 | Integração com fontes autorizadas | Em andamento em 2 partes (decisão de 31/10/2026): **Parte 1** listas M3U por link e arquivo; **Parte 2** login de servidor (padrão Xtream, testado com servidor de teste próprio) + QR Code na TV |
 | 8 | Otimização de desempenho e memória | Não iniciada |
 | 9 | Testes e correções | Não iniciada |
 | 10 | APK de teste e documentação de compilação | Não iniciada |
@@ -308,6 +308,7 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)
 - 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).
+- 31/10/2026 — Glaucia: "muitos é com link e muitos são **Provedor / Usuário / Senha**". Na Parte 2, os campos terão exatamente esses nomes (Provedor, Usuário, Senha), como os clientes recebem dos fornecedores.
 - Login de servidor: se a pessoa colar um link de lista que já traz usuário e senha dentro, o app preenche servidor/usuário/senha sozinho. Opção futura (só se a Glaucia tiver um fornecedor autorizado próprio, com documentação): servidor já configurado no app, e a pessoa digita só usuário e senha — **decisão pendente**.
 - 29/10/2026 — O login da lista **fica salvo** até a pessoa sair: dados criptografados no aparelho (Android Keystore), nunca em texto puro nem em logs; botão "Sair" apaga tudo.
 - Aviso no cadastro da lista: a pessoa declara ter direito de acesso ao conteúdo.

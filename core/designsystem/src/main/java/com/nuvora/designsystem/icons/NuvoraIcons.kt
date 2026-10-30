@@ -62,6 +62,9 @@ object NuvoraIcons {
     }
     val ChevronRight by lazy { icon("chevron_right", filled = false, "M9 6l6 6l-6 6") }
     val ChevronLeft by lazy { icon("chevron_left", filled = false, "M15 6l-6 6l6 6") }
+    val Check by lazy { icon("check", filled = false, "M5 12l5 5l10 -10") }
+    val File by lazy { icon("file", filled = false, "M14 3v4a1 1 0 0 0 1 1h4", "M17 21H7a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z") }
+    val Link by lazy { icon("link", filled = false, "M9 15l6 -6", "M11 6l0.46 -0.54a5 5 0 0 1 7.07 7.07l-0.53 0.47", "M13 18l-0.4 0.53a5.07 5.07 0 0 1 -7.12 0a4.97 4.97 0 0 1 0 -7.07l0.52 -0.46") }
     val Pause by lazy { icon("pause", filled = true, "M6 5h4v14H6z", "M14 5h4v14h-4z") }
     val Rewind by lazy { icon("rewind", filled = false, "M11 7l-5 5l5 5", "M18 7l-5 5l5 5") }
     val Forward by lazy { icon("forward", filled = false, "M13 7l5 5l-5 5", "M6 7l5 5l-5 5") }

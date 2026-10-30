@@ -17,6 +17,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":source:api"))
     // @Immutable ajuda o Compose a evitar redesenhos.
     api(platform(libs.compose.bom))
     api(libs.compose.runtime)

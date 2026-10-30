@@ -1,6 +1,7 @@
 package com.nuvora.core.data
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,14 +11,22 @@ import com.nuvora.core.data.library.HistoryEntry
 import com.nuvora.core.data.library.LibraryRepository
 import com.nuvora.core.data.library.WatchProgress
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HeroItem
 import com.nuvora.core.data.model.HomeContent
 import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.model.SubtitleMode
+import com.nuvora.core.data.security.CryptoBox
 import com.nuvora.core.data.settings.SettingsRepository
+import com.nuvora.core.data.sources.ImportResult
+import com.nuvora.core.data.sources.SourceCatalog
+import com.nuvora.core.data.sources.SourceInfo
+import com.nuvora.core.data.sources.SourcesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -37,14 +46,16 @@ data class AppUiState(
 }
 
 /**
- * "Cérebro" do app, compartilhado por celular e TV: junta a fonte de conteúdo (por enquanto,
- * só a demonstração da versão de teste) com os favoritos e o histórico salvos no aparelho.
- * Sobrevive à rotação da tela; as telas só leem [state] e chamam as ações.
+ * "Cérebro" do app, compartilhado por celular e TV: junta as listas da pessoa (ou a demonstração
+ * da versão de teste) com os favoritos e o histórico salvos no aparelho.
+ * Sobrevive à rotação da tela; as telas só leem o estado e chamam as ações.
  */
 class NuvoraViewModel(application: Application) : AndroidViewModel(application) {
     private val library = LibraryRepository(application)
     private val settings = SettingsRepository(application)
+    private val sourcesRepo = SourcesRepository(application, CryptoBox(application))
     private val demoOn = MutableStateFlow(false)
+    private val catalog = MutableStateFlow<SourceCatalog?>(null)
 
     /** Preferência de legendas (Ajustes). */
     val subtitleMode: StateFlow<SubtitleMode> = settings.subtitleMode
@@ -56,16 +67,30 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setLargeText(on: Boolean) = settings.setLargeText(on)
 
+    /** Listas cadastradas (Ajustes > Fontes de conteúdo). */
+    val sources: StateFlow<List<SourceInfo>> = sourcesRepo.sources
+
+    private val _playing = MutableStateFlow<PlaybackRequest?>(null)
+
+    /** O vídeo aberto no player agora (null = nenhum). */
+    val playing: StateFlow<PlaybackRequest?> = _playing.asStateFlow()
+
     val state: StateFlow<AppUiState> = combine(
         library.loaded,
         demoOn,
         library.favorites,
         library.history,
-    ) { loaded, demo, favorites, history -> buildState(loaded, demo, favorites, history) }
+        catalog,
+    ) { loaded, demo, favorites, history, sourceCatalog -> buildState(loaded, demo, favorites, history, sourceCatalog) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppUiState())
 
     init {
         viewModelScope.launch { library.load() }
+        viewModelScope.launch {
+            sourcesRepo.load()
+            // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
+            sourcesRepo.sources.collectLatest { list -> catalog.value = if (list.isEmpty()) null else sourcesRepo.loadCatalog() }
+        }
     }
 
     fun setDemo(on: Boolean) {
@@ -79,12 +104,30 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ---- Listas ----
+
+    suspend fun addLinkSource(name: String, url: String): ImportResult = sourcesRepo.addLink(name, url)
+
+    suspend fun addFileSource(name: String, uri: Uri): ImportResult = sourcesRepo.addFile(name, uri)
+
+    suspend fun refreshSource(id: Long): ImportResult = sourcesRepo.refresh(id)
+
+    fun removeSource(id: Long) {
+        viewModelScope.launch { sourcesRepo.remove(id) }
+    }
+
+    // ---- Favoritos e histórico ----
+
     fun toggleFavorite(id: String) {
-        val known = DemoContent.items.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
-            ?: DemoContent.hero.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
-            ?: library.favorites.value.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
-            ?: return
-        viewModelScope.launch { library.toggleFavorite(id, known.first, known.second) }
+        viewModelScope.launch {
+            val known = DemoContent.items.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
+                ?: DemoContent.hero.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
+                ?: catalog.value?.items?.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
+                ?: sourcesRepo.item(id)?.let { it.title to it.imageUrl }
+                ?: library.favorites.value.firstOrNull { it.id == id }?.let { it.title to it.imageUrl }
+                ?: return@launch
+            library.toggleFavorite(id, known.first, known.second)
+        }
     }
 
     fun removeFavorite(id: String) {
@@ -99,14 +142,25 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { library.clearHistory() }
     }
 
-    /** O que tocar para este item, ou null se não houver fonte para ele. */
-    fun playbackFor(id: String): PlaybackRequest? = DemoContent.playbackFor(id)
+    // ---- Player ----
+
+    /** Abre o player para este item; se não houver vídeo para ele, chama [onUnavailable]. */
+    fun play(id: String, onUnavailable: () -> Unit) {
+        viewModelScope.launch {
+            val request = DemoContent.playbackFor(id) ?: sourcesRepo.playback(id)
+            if (request == null) onUnavailable() else _playing.value = request
+        }
+    }
+
+    fun closePlayer() {
+        _playing.value = null
+    }
 
     /** De onde continuar: a posição salva, se a pessoa parou no meio; senão, do início. */
     fun resumePositionFor(id: String): Long =
         library.history.value.firstOrNull { it.id == id }?.takeIf(WatchProgress::isUnfinished)?.positionMs ?: 0L
 
-    /** Chamado pelo player a cada 10 s e ao sair. */
+    /** Chamado pelo player a cada 10 s e ao sair. Ao vivo (sem duração) não entra no histórico. */
     fun saveProgress(request: PlaybackRequest, positionMs: Long, durationMs: Long) {
         if (durationMs <= 0) return
         viewModelScope.launch {
@@ -116,14 +170,19 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun search(query: String): List<CardItem> =
-        if (query.isBlank()) emptyList() else state.value.catalog.filter { it.title.contains(query.trim(), ignoreCase = true) }
+    /** Busca na demonstração ou no banco das listas (nunca na lista inteira em memória). */
+    suspend fun search(query: String): List<CardItem> = when {
+        query.isBlank() -> emptyList()
+        demoOn.value -> DemoContent.items.filter { it.title.contains(query.trim(), ignoreCase = true) }
+        else -> sourcesRepo.search(query)
+    }
 
     private fun buildState(
         loaded: Boolean,
         demo: Boolean,
         favorites: List<FavoriteEntry>,
         history: List<HistoryEntry>,
+        sourceCatalog: SourceCatalog?,
     ): AppUiState {
         // Itens de exemplo só aparecem com a demonstração ligada.
         fun visible(id: String) = demo || !id.startsWith(DemoContent.ID_PREFIX)
@@ -137,15 +196,20 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         val continueCards = visibleHistory.filter(WatchProgress::isUnfinished).map {
             CardItem(it.id, it.title, it.imageUrl, caption = WatchProgress.remainingLabel(it), progress = WatchProgress.fraction(it))
         }
-        val catalog = if (demo) DemoContent.items else emptyList()
+        val source: Triple<List<CardItem>, List<String>, List<HeroItem>> = when {
+            demo -> Triple(DemoContent.items, DemoContent.categories, DemoContent.hero)
+            sourceCatalog != null -> Triple(sourceCatalog.items, sourceCatalog.categories, sourceCatalog.hero)
+            else -> Triple(emptyList(), emptyList(), emptyList())
+        }
+        val (catalogItems, categories, hero) = source
         val home = when {
             !loaded -> HomeUiState.Loading
-            demo -> HomeUiState.Content(
+            demo || sourceCatalog != null -> HomeUiState.Content(
                 HomeContent(
-                    hero = DemoContent.hero,
+                    hero = hero,
                     continueWatching = continueCards,
-                    categories = DemoContent.categories,
-                    recent = catalog,
+                    categories = categories,
+                    recent = catalogItems,
                     favorites = favoriteCards,
                     history = historyCards,
                 ),
@@ -158,8 +222,8 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
             favoriteIds = favorites.mapTo(HashSet()) { it.id },
             favorites = favoriteCards,
             history = historyCards,
-            catalog = catalog,
-            categories = if (demo) DemoContent.categories else emptyList(),
+            catalog = catalogItems,
+            categories = categories,
         )
     }
 }

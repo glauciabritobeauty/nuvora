@@ -71,6 +71,11 @@ jobs:
         with:
           name: nuvora-debug
           path: apk
+      - name: Servir listas de teste para o emulador
+        run: |
+          python3 ci/listas.py
+          nohup python3 -m http.server 8000 --directory listas > /dev/null 2>&1 &
+          sleep 2 && curl -sf http://127.0.0.1:8000/teste.m3u | head -3
       - name: Habilitar aceleração (KVM)
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

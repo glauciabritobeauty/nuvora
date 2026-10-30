@@ -11,8 +11,8 @@ android {
         applicationId = "com.nuvora.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.6.2"
+        versionCode = 9
+        versionName = "0.7.0"
     }
 
     // Chave fixa das versões de teste (vem dos segredos do GitHub na compilação na nuvem).
@@ -58,5 +58,8 @@ dependencies {
     implementation(project(":feature:tv"))
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.coil.compose)
+    // Baixa as capas e logos pela internet.
+    implementation(libs.coil.network.okhttp)
     debugImplementation(libs.compose.ui.tooling)
 }

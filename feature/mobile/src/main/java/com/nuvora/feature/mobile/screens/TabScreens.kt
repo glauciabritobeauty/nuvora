@@ -16,7 +16,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -217,15 +219,16 @@ fun SettingsScreen(
     onChangeSubtitles: () -> Unit,
     largeText: Boolean,
     onToggleLargeText: () -> Unit,
+    sourcesContent: @Composable () -> Unit,
 ) {
     val dimens = NuvoraTheme.dimens
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenTitle("Ajustes")
         Column(
-            modifier = Modifier.padding(horizontal = dimens.screenPaddingH),
+            modifier = Modifier.padding(start = dimens.screenPaddingH, end = dimens.screenPaddingH, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            sourcesContent()
             InfoRow(
                 if (largeText) "Letra maior: ligada" else "Letra maior: desligada",
                 "Aumenta todos os textos do aplicativo.",

@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:data"))
     implementation(project(":core:player"))
+    implementation(project(":feature:sources"))
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
 }

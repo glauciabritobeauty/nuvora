@@ -10,9 +10,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:name=".NuvoraApp"
         android:banner="@drawable/tv_banner"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Nuvora">
 
