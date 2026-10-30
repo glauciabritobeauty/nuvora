@@ -291,6 +291,11 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 - Não funciona: Roku, Samsung (Tizen), LG (webOS), Apple TV. App para Roku seria um projeto separado — ideia futura, não está no escopo.
 - Computador (31/10/2026, pergunta da Glaucia): fora do escopo atual. Chromebook roda o APK. Windows/Mac: ideia futura — versão de computador reaproveitando parte do código (Compose Multiplatform) ou versão web; seria um projeto à parte. **Preferência da Glaucia: versão para navegador (abrir no Chrome, sem instalar).** Avaliar depois do app Android pronto: listas M3U/servidores costumam usar http e bloqueios de CORS, o que no navegador pode exigir um servidor intermediário — estudar antes de prometer.
 
+## Idioma e legendas (31/10/2026)
+- Glaucia confirmou: padrão **português do Brasil**. Ajuste aprovado: pedir primeiro áudio/legenda **pt-BR**, depois qualquer português.
+- Acessibilidade (Glaucia: "tem bastante gente com deficiência auditiva"): proposta de opção em Ajustes — Legendas **Automático** (só quando o áudio não é português) / **Sempre ligadas** (prefere legendas para surdos, quando o vídeo tiver) / **Desligadas** — e o app lembra a escolha feita no player. **Aguardando a Glaucia definir o padrão.**
+- Pedido da Glaucia (31/10/2026): a pessoa escolhe **no próprio vídeo** se quer legenda ou não. Proposta: botão "Legendas" **sempre visível** no player; se o vídeo não tiver legenda, avisa "Este vídeo não tem legenda disponível na fonte"; canais ao vivo podem ter legenda oculta (closed caption) embutida, que o player já consegue mostrar. Legenda gerada automaticamente (reconhecimento de voz): **descartada pela Glaucia** ("nada de pesar o app") — não fazer.
+
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)
 - 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).
 - Login de servidor: se a pessoa colar um link de lista que já traz usuário e senha dentro, o app preenche servidor/usuário/senha sozinho. Opção futura (só se a Glaucia tiver um fornecedor autorizado próprio, com documentação): servidor já configurado no app, e a pessoa digita só usuário e senha — **decisão pendente**.
