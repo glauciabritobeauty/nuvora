@@ -14,7 +14,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 |---|---|---|
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
-| 3 | Home para celular | Em andamento (iniciada em 29/10/2026) |
+| 3 | Home para celular | Entregue em 30/10/2026 — **aguardando aprovação** |
 | 4 | Home específica para Android TV | Não iniciada |
 | 5 | Navegação e gerenciamento de estado | Não iniciada |
 | 6 | Player (Media3) | Não iniciada |
@@ -156,6 +156,36 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 
 - A abertura no emulador **não vale como meta**: é versão debug, em emulador sem placa de vídeo. A meta (< 1,5 s celular, < 2 s TV) será medida em versão otimizada nos aparelhos reais (Etapa 8).
 - Problemas achados nos prints e corrigidos na mesma etapa: ícones da barra de status escuros no celular; "luz" do banner com corte reto; botão em foco cortado na TV; os 3 avisos espremidos na TV.
+- Ainda **não testado em aparelho real**.
+
+---
+
+## ETAPA 3 — Home para celular e tablet
+
+### O que foi feito
+- Novo módulo `feature/mobile`: a vitrine de teste do celular foi **removida** (`app/.../MobileCatalog.kt`, era provisória da Etapa 2) e substituída pela Home real. A TV continua com a vitrine até a Etapa 4.
+- Home: logo + lupa, banner que desliza para o lado (só monta a página visível e as vizinhas), Continuar assistindo, Categorias (filtram de verdade os recentes), Adicionados recentemente, Favoritos e Histórico. Seções vazias não aparecem.
+- Estado real hoje: **"Nenhuma fonte conectada"** (não há fonte até a Etapa 7). Estados de carregando/erro/sem internet já estão ligados à Home para quando houver fonte.
+- Abas do menu: Buscar (procura de verdade), Favoritos e Histórico (grade ou aviso de vazio), Ajustes (informações do app). "Ver tudo" abre a seção em grade (mais colunas no tablet). Botão voltar: fecha "Ver tudo" → volta ao Início → sai do app.
+- Favoritar funciona na hora (coração cheio + fileira Favoritos), mas **ainda não fica salvo** ao fechar o app (salvamento no aparelho na Etapa 5).
+- Tocar num cartão mostra o aviso "a reprodução chega na Etapa 6" (o player ainda não existe).
+- **Demonstração só na versão de teste:** botão "Ver demonstração" com cartões "Exemplo N", sem capa, e faixa "Modo demonstração". O arquivo da versão final (`src/release`) não tem demonstração.
+- Rotação da tela e troca de aba mantêm o estado (demonstração, favoritos, busca).
+
+### Testes (emuladores na nuvem, 30/10/2026)
+| Teste | Celular (Pixel 5) | Tablet (Pixel C) | TV |
+|---|---|---|---|
+| Compila (teste e versão final otimizada) | OK | OK | OK |
+| Abre sem fechar sozinho / sem erros do app | OK | OK | OK |
+| Estado real "Nenhuma fonte conectada" | OK | OK | — (vitrine) |
+| Demonstração, favoritar, categoria "Séries" filtra | OK | OK | — |
+| Busca "Exemplo 1" acha 8 resultados | OK | OK | — |
+| Abas Favoritos e Ajustes, voltar → Início, "Ver tudo" | OK | OK | — |
+| Deitar e voltar a tela em pé, mantendo o estado | OK | OK | — |
+| Memória (PSS) | 68 MB | 79 MB | 72 MB |
+
+- **Tamanho do APK final otimizado: 1,35 MB** (meta < 15 MB). O APK de teste tem 13 MB por não ser otimizado.
+- Problema encontrado e **ainda aberto**: no emulador de celular, a "leitura da tela" usada pelos leitores de acessibilidade (TalkBack) informa o menu inferior com tamanho zero; no tablet está correto. No teste automático, as abas do celular foram tocadas pela posição. Causa ainda não identificada — investigar com o TalkBack ligado (Etapa 9 ou antes).
 - Ainda **não testado em aparelho real**.
 
 ---
