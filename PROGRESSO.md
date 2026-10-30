@@ -9,6 +9,10 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Sem refatorações desnecessárias, sem funcionalidades fora do escopo sem autorização, sem alterar partes aprovadas sem avisar.
 - Só fontes de conteúdo autorizadas. Nada de APIs, servidores ou credenciais inventados; nada que contorne DRM.
 
+## Onde paramos (30/10/2026, noite)
+- Etapa 4 (Home da TV) implementada; todos os testes na nuvem passaram (celular, tablet, TV só com controle). Faltava conferir a última rodada (título dos cartões para o leitor de tela) e entregar a Etapa 4 no formato combinado.
+- Ao retomar: ver o resultado da última compilação em github.com/glauciabritobeauty/nuvora/actions, conferir prints, registrar a Etapa 4 abaixo e pedir aprovação.
+
 ## Situação das etapas
 | Etapa | Descrição | Situação |
 |---|---|---|
@@ -212,6 +216,11 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 
 ## Requisitos levantados para a Etapa 5 (ainda não implementados)
 - 30/10/2026 — Glaucia perguntou sobre excluir os últimos assistidos. Proposta: "Remover" item a item (Histórico e Continuar assistindo; toque longo no celular, botão de opções na TV) + "Limpar histórico" com confirmação na aba Histórico e em Ajustes. **Autorizado pela Glaucia em 30/10/2026 — incluir obrigatoriamente na Etapa 5 e avisá-la quando for implementado.**
+
+## Compatibilidade de aparelhos (30/10/2026)
+- Funciona: Android TV, Google TV, Chromecast com Google TV, TV Box Android, celulares e tablets Android.
+- **Testar na Etapa 9 (autorizado pela Glaucia):** Amazon Fire TV e Fire Stick (Fire OS é baseado em Android; o APK deve rodar, mas ainda não foi testado).
+- Não funciona: Roku, Samsung (Tizen), LG (webOS), Apple TV. App para Roku seria um projeto separado — ideia futura, não está no escopo.
 
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)
 - 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).
