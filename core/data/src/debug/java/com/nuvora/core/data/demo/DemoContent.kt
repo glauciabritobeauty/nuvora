@@ -53,16 +53,20 @@ object DemoContent {
 
     /**
      * Vídeos públicos de teste para desenvolvedores (autorizados pela Glaucia em 31/10/2026).
-     * HLS da Apple (com legenda e 3 opções de áudio), DASH do Google (curta "Tears of Steel", licença aberta)
+     * HLS da Apple (10 min, com legenda), DASH do Google/Shaka ("Angel One", vários idiomas de áudio e legenda)
      * e um MP4 de 10 segundos ("Big Buck Bunny", licença aberta).
      */
     private val testStreams = listOf(
         Triple(
             "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
             "application/x-mpegURL",
-            "Vídeo de teste · HLS com legenda e opções de áudio",
+            "Vídeo de teste · HLS com legenda",
         ),
-        Triple("https://storage.googleapis.com/wvmedia/clear/h264/tears/tears.mpd", "application/dash+xml", "Vídeo de teste · DASH"),
+        Triple(
+            "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
+            "application/dash+xml",
+            "Vídeo de teste · DASH com vários idiomas de áudio e legenda",
+        ),
         Triple(
             "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
             "video/mp4",

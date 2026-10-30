@@ -17,6 +17,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -89,6 +91,8 @@ import androidx.media3.ui.compose.state.rememberPresentationState
 import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.MessageState
+import com.nuvora.designsystem.components.NuvoraClickable
+import com.nuvora.designsystem.components.NuvoraIcon
 import com.nuvora.designsystem.components.NuvoraButton
 import com.nuvora.designsystem.components.NuvoraButtonStyle
 import com.nuvora.designsystem.components.NuvoraDialog
@@ -320,7 +324,7 @@ fun NuvoraPlayerScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = if (controlsVisible) 150.dp else 40.dp, start = 48.dp, end = 48.dp)
+                    .padding(bottom = if (controlsVisible) 110.dp else 40.dp, start = 48.dp, end = 48.dp)
                     .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             )
@@ -451,7 +455,7 @@ private fun Controls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            NuvoraButton(text = null, icon = NuvoraIcons.ChevronLeft, style = NuvoraButtonStyle.Secondary, contentDescription = "Sair do vídeo", onClick = onClose)
+            PlayerButton(NuvoraIcons.ChevronLeft, "Sair do vídeo", onClose)
             Column {
                 NuvoraText(request.title, NuvoraTheme.typography.section, maxLines = 1)
                 request.subtitle?.let { NuvoraText(it, NuvoraTheme.typography.caption, color = colors.textSecondary, maxLines = 1) }
@@ -463,7 +467,7 @@ private fun Controls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            NuvoraButton(text = null, icon = NuvoraIcons.Rewind, style = NuvoraButtonStyle.Secondary, contentDescription = "Voltar 10 segundos", onClick = onSeekBack)
+            PlayerButton(NuvoraIcons.Rewind, "Voltar 10 segundos", onSeekBack)
             NuvoraButton(
                 text = null,
                 icon = if (isPlaying) NuvoraIcons.Pause else NuvoraIcons.Play,
@@ -471,7 +475,7 @@ private fun Controls(
                 onClick = onTogglePlay,
                 modifier = Modifier.focusRequester(playFocus).graphicsLayer { scaleX = 1.3f; scaleY = 1.3f },
             )
-            NuvoraButton(text = null, icon = NuvoraIcons.Forward, style = NuvoraButtonStyle.Secondary, contentDescription = "Avançar 10 segundos", onClick = onSeekForward)
+            PlayerButton(NuvoraIcons.Forward, "Avançar 10 segundos", onSeekForward)
         }
 
         Column(
@@ -488,14 +492,37 @@ private fun Controls(
                 )
                 Spacer(Modifier.weight(1f))
                 if (hasAudioChoice) {
-                    NuvoraButton(text = "Áudio", icon = NuvoraIcons.Audio, style = NuvoraButtonStyle.Secondary, onClick = onAudio)
+                    PlayerButton(NuvoraIcons.Audio, "Áudio", onAudio, showLabel = true)
                 }
                 if (hasSubtitles) {
-                    NuvoraButton(text = "Legendas", icon = NuvoraIcons.Subtitles, style = NuvoraButtonStyle.Secondary, onClick = onSubtitles)
+                    PlayerButton(NuvoraIcons.Subtitles, "Legendas", onSubtitles, showLabel = true)
                 }
-                NuvoraButton(text = null, icon = NuvoraIcons.VolumeDown, style = NuvoraButtonStyle.Secondary, contentDescription = "Diminuir volume", onClick = { onVolume(false) })
-                NuvoraButton(text = null, icon = NuvoraIcons.VolumeUp, style = NuvoraButtonStyle.Secondary, contentDescription = "Aumentar volume", onClick = { onVolume(true) })
+                PlayerButton(NuvoraIcons.VolumeDown, "Diminuir volume", { onVolume(false) })
+                PlayerButton(NuvoraIcons.VolumeUp, "Aumentar volume", { onVolume(true) })
             }
+        }
+    }
+}
+
+/** Botão do player com fundo escuro translúcido: fica legível sobre qualquer imagem do vídeo. */
+@Composable
+private fun PlayerButton(icon: ImageVector, label: String, onClick: () -> Unit, showLabel: Boolean = false) {
+    val colors = NuvoraTheme.colors
+    NuvoraClickable(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        containerColor = Color.Black.copy(alpha = 0.5f),
+        focusedContainerColor = colors.surfaceRaised,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
+        modifier = Modifier.semantics { contentDescription = label },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (showLabel) 16.dp else 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            NuvoraIcon(icon, tint = Color.White, size = 20.dp)
+            if (showLabel) NuvoraText(label, NuvoraTheme.typography.label, color = Color.White, maxLines = 1)
         }
     }
 }

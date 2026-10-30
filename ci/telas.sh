@@ -96,8 +96,32 @@ EOF
 # que às vezes cobrem a tela e atrapalham o teste. Travamentos do NUVORA continuam no registro de erros.
 adb shell settings put global hide_error_dialogs 1
 
-# Memória total do app (PSS, em KB).
-total_pss() { adb shell dumpsys meminfo "$PKG" | grep "TOTAL PSS" | awk '{print $3}'; }
+# Memória total do app (PSS, em KB), depois de pedir ao app para limpar o lixo da memória (coleta de lixo).
+total_pss() {
+  local pid
+  pid=$(adb shell pidof "$PKG" | tr -d '')
+  [ -n "$pid" ] && adb shell run-as "$PKG" kill -10 "$pid" 2> /dev/null
+  sleep 4
+  adb shell dumpsys meminfo "$PKG" | grep "TOTAL PSS" | awk '{print $3}'
+}
+
+# Toca no cartão com essa descrição (o cartão, não o texto embaixo dele).
+tap_card() {
+  read_ui
+  local pos
+  pos=$(python3 - "$1" <<'EOF3'
+import re, sys
+for n in re.findall(r'<node [^>]*>', open('ui.xml', encoding='utf-8').read()):
+    if f'content-desc="{sys.argv[1]}"' in n:
+        a = list(map(int, re.findall(r'\d+', re.search(r'bounds="([^"]*)"', n).group(1))))
+        if a[3] - a[1] > 10:
+            print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
+            break
+EOF3
+)
+  if [ -n "$pos" ]; then adb shell input tap $pos; echo "ok: tocou no cartão '$1'" >> "$STEPS"; else echo "FALHOU: não achou o cartão '$1'" >> "$STEPS"; fi
+  sleep 2
+}
 
 # Lê o relógio do player ("Tempo atual 1:23") e devolve em segundos; vazio se os controles não estiverem na tela.
 read_time() {
@@ -186,19 +210,20 @@ EOF
   key $U; key $OK; sleep 2
   check_text "Nada assistido ainda" sim; shot 14-historico-limpo
 
-  # Etapa 6: player pelo controle.
-  key $BACK; key $U; key $U; key $OK; sleep 2; focus "22. Início pelo menu"
+  # Etapa 6: player pelo controle. Primeiro, ir com certeza ao Início pelo menu.
+  key $BACK; for i in 1 2 3 4 5; do key $U; done; key $D; focus "22. menu: Início"; key $OK; sleep 3
+  focus "23. Home: foco no Assistir"
   MEM_ANTES=$(total_pss)
   key $OK; sleep 15; shot 15-player-tocando
-  key $U; T1=$(read_time); focus "23. seta mostra controles (foco no tocar/pausar)"; shot 16-player-controles
+  key $U; T1=$(read_time); focus "24. seta mostra controles (foco no tocar/pausar)"; shot 16-player-controles
   sleep 7; key $U; T2=$(read_time); check_advanced "$T1" "$T2" "TV"
-  sleep 6; key $R; sleep 1; T3=$(read_time); check_advanced "$T2" "$T3" "TV, seta direita avança"
+  sleep 7; key $R; sleep 1; T3=$(read_time); check_advanced "$T2" "$T3" "TV, seta direita avança"
   key $BACK; sleep 1; check_text "Tempo atual" nao
-  key $BACK; sleep 3; focus "24. Voltar sai do player e volta à Home"; shot 17-voltou-home
-  check_text "Destaque de exemplo 1" sim
+  key $BACK; sleep 3; focus "25. Voltar sai do player e volta à Home"; shot 17-voltou-home
+  MEM_1=$(total_pss)
   for i in 1 2 3; do key $OK; sleep 8; key $BACK; key $BACK; sleep 3; done
-  sleep 5; MEM_DEPOIS=$(total_pss)
-  echo "memória (KB) antes do player: $MEM_ANTES; depois de 4 entradas e saídas: $MEM_DEPOIS" >> "$STEPS"
+  MEM_4=$(total_pss)
+  echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 4ª saída $MEM_4" >> "$STEPS"
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -255,24 +280,36 @@ else
   show_controls() { if [ -z "$(read_time)" ]; then adb shell input tap $C $C; sleep 1; fi; }
   tap_tab "Início" 1
   MEM_ANTES=$(total_pss)
+  # Destaque = HLS com legenda.
   tap_text "Assistir"; sleep 15; shot 18-player-tocando
-  adb shell input tap $C $C; sleep 1; T1=$(read_time); shot 19-player-controles
-  sleep 6; adb shell input tap $C $C; sleep 1; T2=$(read_time); check_advanced "$T1" "$T2" "celular"
-  show_controls; tap_text "Áudio"; shot 20-opcoes-audio; tap_text "Fechar"
-  show_controls; tap_text "Legendas"; shot 21-opcoes-legendas; tap_text "Inglês"; sleep 8; shot 22-com-legenda
+  show_controls; T1=$(read_time); shot 19-player-controles
+  sleep 7; show_controls; T2=$(read_time); check_advanced "$T1" "$T2" "HLS"
+  show_controls; tap_text "Pausar"
+  tap_text "Legendas"; shot 20-opcoes-legendas; tap_text "Desligadas"; check_text "Legendas" sim
+  tap_text "Tocar"
   # Queda de internet no meio do vídeo e volta.
-  adb shell cmd connectivity airplane-mode enable; sleep 75; shot 23-sem-internet
+  adb shell cmd connectivity airplane-mode enable; sleep 75; shot 21-sem-internet
   check_text "A conexão caiu" sim
-  adb shell cmd connectivity airplane-mode disable; sleep 30; shot 24-internet-voltou
+  adb shell cmd connectivity airplane-mode disable; sleep 30; shot 22-internet-voltou
   check_text "A conexão caiu" nao
-  show_controls; T3=$(read_time); sleep 6; show_controls; T4=$(read_time); check_advanced "$T3" "$T4" "depois que a internet voltou"
-  key KEYCODE_BACK; sleep 3; shot 25-voltou-home
+  show_controls; T3=$(read_time); sleep 7; show_controls; T4=$(read_time); check_advanced "$T3" "$T4" "depois que a internet voltou"
+  key KEYCODE_BACK; sleep 3; shot 23-voltou-home
   check_text "Assistir" sim
-  tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 26-historico-apos-assistir
+  MEM_1=$(total_pss)
+  # Exemplo 2 = DASH com vários idiomas: troca de áudio.
+  swipe_up; tap_card "Exemplo 2"; sleep 15
+  show_controls; tap_text "Pausar"; tap_text "Áudio"; shot 24-opcoes-audio
+  tap_text "Espanhol"; check_text "Áudio" sim; tap_text "Tocar"; sleep 5
+  show_controls; tap_text "Pausar"; tap_text "Áudio"; check_text "Espanhol (atual)" sim; shot 25-audio-trocado; tap_text "Fechar"
+  key KEYCODE_BACK; sleep 3
+  # Exemplo 3 = MP4 de 10 s: chega ao fim e mostra o botão de tocar de novo.
+  tap_card "Exemplo 3"; sleep 25; check_text "Tocar" sim; shot 26-mp4-terminou
+  key KEYCODE_BACK; sleep 3
+  tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 27-historico-apos-assistir
   tap_tab "Início" 1
-  for i in 1 2 3; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
-  sleep 5; MEM_DEPOIS=$(total_pss)
-  echo "memória (KB) antes do player: $MEM_ANTES; depois de 4 entradas e saídas: $MEM_DEPOIS" >> "$STEPS"
+  for i in 1 2; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
+  MEM_4=$(total_pss)
+  echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi
