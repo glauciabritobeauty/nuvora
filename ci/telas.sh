@@ -13,8 +13,16 @@ key() { adb shell input keyevent "$1"; sleep 1; }
 
 # Toca no elemento pelo texto ou pela descrição (como um leitor de tela enxerga), não por coordenada fixa.
 tap_text() {
-  adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
-  adb shell cat /sdcard/ui.xml > ui.xml
+  # A leitura da tela às vezes falha no emulador; tenta até 4 vezes e registra o motivo.
+  rm -f ui.xml
+  for tentativa in 1 2 3 4; do
+    adb shell rm -f /sdcard/ui.xml
+    msg=$(adb shell uiautomator dump --compressed /sdcard/ui.xml 2>&1)
+    adb shell cat /sdcard/ui.xml > ui.xml 2> /dev/null
+    if grep -q "<node" ui.xml 2> /dev/null; then break; fi
+    echo "  leitura da tela falhou (tentativa $tentativa): $msg" >> "$STEPS"
+    sleep 2
+  done
   local pos
   pos=$(python3 - "$1" <<'EOF'
 import re, sys
