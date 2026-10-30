@@ -10,8 +10,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Só fontes de conteúdo autorizadas. Nada de APIs, servidores ou credenciais inventados; nada que contorne DRM.
 
 ## Onde paramos (30/10/2026, noite)
-- Etapa 5 **entregue** (detalhes na seção da Etapa 5). Falta a Glaucia aprovar e confirmar se o APK atualizou por cima no celular.
-- APK: `apk/nuvora-etapa5.apk`.
+- Etapa 6 **entregue** (detalhes na seção da Etapa 6). Falta a Glaucia aprovar. Ainda sem retorno se o APK atualizou por cima no celular.
+- APK: `apk/nuvora-etapa6.apk`.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -21,7 +21,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 4 | Home específica para Android TV | **Aprovada** em 31/10/2026 ("Pode avançar"). TV real não testada (TV da Glaucia é Roku) |
 | 5 | Navegação e gerenciamento de estado | **Aprovada** em 31/10/2026 ("Pode avançar") |
-| 6 | Player (Media3) | Em andamento (iniciada em 31/10/2026). Vídeos públicos de teste autorizados pela Glaucia (só na versão de teste) |
+| 6 | Player (Media3) | Entregue em 31/10/2026 — **aguardando aprovação** |
 | 7 | Integração com fontes autorizadas | Não iniciada |
 | 8 | Otimização de desempenho e memória | Não iniciada |
 | 9 | Testes e correções | Não iniciada |
@@ -231,6 +231,32 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 - App aberto sem fechar e sem erros nos 3. Memória: celular 63 MB, tablet 60 MB, TV 80 MB.
 - Problemas do próprio emulador (aviso "Pixel Launcher isn't responding") atrapalharam duas rodadas do tablet; o teste agora esconde esses avisos de outros apps (travamentos do NUVORA continuam sendo registrados).
 - Não testado ainda: atualização por cima num celular real (primeira prova é este APK).
+
+---
+
+## ETAPA 6 — Player (Media3)
+
+### O que foi feito
+- Novo módulo `core/player` com AndroidX Media3 1.11.1 (ExoPlayer + HLS + DASH + tela em Compose). MP4 vem junto no ExoPlayer.
+- Controles próprios no visual NUVORA: sair, título, voltar/avançar 10 s, tocar/pausar, barra de progresso (tocar/arrastar no celular; ← → na TV), tempo, Áudio (só aparece se houver mais de uma opção), Legendas (com "Desligadas"), volume − / +.
+- Celular: tela cheia deitada; tocar mostra/esconde controles. TV: OK/setas mostram controles; ← → com controles escondidos voltam/avançam 10 s; Voltar esconde controles e depois sai.
+- Áudio e legenda preferem português automaticamente; cada idioma aparece uma vez na lista; janelas com muitas opções rolam.
+- Carregando: arco girando só enquanto carrega. Erros com mensagens amigáveis (conexão caiu, vídeo indisponível, formato não suportado, outros) e "Tentar de novo"; **quando a internet volta, retoma sozinho do mesmo ponto**.
+- Continua de onde parou (posição salva a cada 10 s e ao sair; se a posição salva passou do fim, começa do início). Pausa e salva ao sair do app.
+- **Recursos liberados:** o player só existe com a tela aberta; ao sair é liberado (vídeo, áudio, memória). Guarda no máximo 30 s de vídeo à frente (menos memória). Tela sempre acesa só durante o vídeo.
+- A Home volta exatamente como estava (rolagem e aba) ao sair do player.
+- Vídeos públicos de teste (só versão de teste, autorizados): HLS da Apple (10 min, legenda), DASH "Angel One" do Google/Shaka (vários idiomas de áudio e legenda), MP4 "Big Buck Bunny" de 10 s.
+- Versão de teste anota eventos do player no registro do Android (tecla, posição, falha, retomou, áudio escolhido, fechado) para os testes automáticos; a versão final não anota nada.
+- Novas permissões: Internet e estado da rede. A tela não é recriada ao girar (o vídeo não reinicia).
+- **APK final otimizado: 1,52 MB** (era 1,35 MB; o player acrescentou ~170 KB).
+
+### Testes (emuladores na nuvem, 31/10/2026)
+- Celular e tablet: HLS abre e anda; **modo avião no meio do vídeo → "A conexão caiu" → internet volta → retomou sozinho e continuou andando**; sair libera o player; MP4 de 10 s chega ao fim e mostra "tocar de novo"; histórico registra o que foi assistido. **Todos OK.**
+- TV, só controle: abre, anda, → avança 10 s, Voltar sai e libera o player; DASH com vários idiomas: pausar, descer até "Áudio", escolher **Espanhol** → aplicado. Legenda em português escolhida sozinha. **Todos OK.**
+- Memória (PSS, após limpeza de memória): celular 60 MB na Home → 79 MB após a 1ª saída do player → 84 MB após a 5ª; tablet 59 → 78 → 83; TV 81 → 92 → 94. A subida da 1ª vez é o Android carregando as peças de vídeo (uma vez só); entre a 1ª e a 5ª saída cresce menos de 7% → **sem vazamento** (meta ±10%).
+- O NUVORA não fechou sozinho em nenhuma rodada. Os erros "AndroidRuntime" vistos no registro foram da ferramenta de leitura de tela do emulador (uiautomator), não do app.
+- **Defeitos achados e corrigidos na etapa:** Voltar na TV não saía do vídeo; lista de áudio com idiomas repetidos; janela de opções maior que a tela da TV sem rolar; botão de voltar 10 s ilegível sobre vídeo claro; legenda no meio da tela com controles abertos.
+- Pendências: na TV, ao sair do player às vezes nenhum item fica em foco (a primeira seta leva ao menu) — corrigir na Etapa 8/9; acessibilidade da faixa inferior (já registrada); teste em aparelho real.
 
 ---
 
