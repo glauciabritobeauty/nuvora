@@ -296,7 +296,7 @@ EOF
   # Reabre o app (se um Voltar a mais tiver saído dele) e vai ao menu lateral, até Ajustes (último item).
   adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 3
   for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
-  key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $D; key $OK; sleep 2
+  key $R; focus "32. entrou em Ajustes"; for i in 1 2 3 4 5 6 7 8 9 10; do key $U; done; focus_until "Adicionar lista" $D; key $OK; sleep 2
   focus "33. tela Adicionar lista"; focus_until "Minha lista" $D
   key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
   focus_until "http://" $D; key $OK; sleep 2; adb shell input text "http://10.0.2.2:8000/teste.m3u"; key $BACK
