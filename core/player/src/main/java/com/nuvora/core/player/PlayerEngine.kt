@@ -13,6 +13,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import com.nuvora.core.data.model.PlaybackRequest
+import com.nuvora.core.data.model.SubtitleMode
 import java.util.Locale
 
 private const val SEEK_STEP_MS = 10_000L
@@ -23,7 +24,12 @@ private const val SEEK_STEP_MS = 10_000L
  * e respeita outros apps de áudio.
  */
 @UnstableApi
-internal fun createPlayer(context: Context, request: PlaybackRequest, startPositionMs: Long): ExoPlayer {
+internal fun createPlayer(
+    context: Context,
+    request: PlaybackRequest,
+    startPositionMs: Long,
+    subtitleMode: SubtitleMode,
+): ExoPlayer {
     val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(15_000, 30_000, 1_500, 3_000)
         .build()
@@ -38,9 +44,18 @@ internal fun createPlayer(context: Context, request: PlaybackRequest, startPosit
         .setHandleAudioBecomingNoisy(true)
         .build()
         .apply {
+            // Português do Brasil primeiro; se não houver, qualquer português.
             trackSelectionParameters = trackSelectionParameters.buildUpon()
-                .setPreferredAudioLanguage("pt")
-                .setPreferredTextLanguage("pt")
+                .setPreferredAudioLanguages("pt-BR", "pt")
+                .setPreferredTextLanguages("pt-BR", "pt")
+                .apply {
+                    when (subtitleMode) {
+                        SubtitleMode.Off -> setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        SubtitleMode.Always -> setPreferredTextRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_CAPTION)
+                            .setSelectUndeterminedTextLanguage(true)
+                        SubtitleMode.Auto -> Unit
+                    }
+                }
                 .build()
             val item = MediaItem.Builder().setUri(request.url).apply { request.mimeType?.let(::setMimeType) }.build()
             setMediaItem(item, startPositionMs)
@@ -157,4 +172,48 @@ internal fun formatTime(ms: Long): String {
     val m = (total % 3600) / 60
     val s = total % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+private fun Tracks.selectedFormat(type: Int): Format? =
+    groups.firstOrNull { it.type == type && it.isSelected }
+        ?.let { group -> (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let(group::getTrackFormat) }
+
+/** Quando os idiomas do vídeo ficam conhecidos: o áudio já foi escolhido? */
+internal fun Tracks.audioReady(): Boolean = groups.any { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
+
+/**
+ * Decide a legenda do começo do vídeo pela preferência da pessoa (uma vez por vídeo).
+ * Automático: some se o áudio já está em português. Sempre: liga alguma, se o vídeo tiver.
+ * Devolve uma descrição curta do resultado (usada nas anotações da versão de teste).
+ */
+@UnstableApi
+internal fun applyInitialSubtitles(player: Player, tracks: Tracks, mode: SubtitleMode): String {
+    val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+    fun current() = tracks.selectedFormat(C.TRACK_TYPE_TEXT)?.let { it.label ?: languageName(it.language) } ?: "nenhuma"
+    return when (mode) {
+        SubtitleMode.Off -> "desligada"
+        SubtitleMode.Auto -> {
+            val audioLanguage = tracks.selectedFormat(C.TRACK_TYPE_AUDIO)?.language.orEmpty()
+            if (audioLanguage.startsWith("pt")) {
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+                "desligada (áudio já em português)"
+            } else {
+                current()
+            }
+        }
+        SubtitleMode.Always -> {
+            val group = textGroups.firstOrNull { g -> (0 until g.length).any(g::isTrackSupported) }
+            if (textGroups.none { it.isSelected } && group != null) {
+                val index = (0 until group.length).first(group::isTrackSupported)
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index))
+                    .build()
+                group.getTrackFormat(index).let { it.label ?: languageName(it.language) } ?: "ligada"
+            } else {
+                current()
+            }
+        }
+    }
 }

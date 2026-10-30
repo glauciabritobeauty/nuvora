@@ -13,6 +13,8 @@ import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HomeContent
 import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.core.data.model.PlaybackRequest
+import com.nuvora.core.data.model.SubtitleMode
+import com.nuvora.core.data.settings.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +43,13 @@ data class AppUiState(
  */
 class NuvoraViewModel(application: Application) : AndroidViewModel(application) {
     private val library = LibraryRepository(application)
+    private val settings = SettingsRepository(application)
     private val demoOn = MutableStateFlow(false)
+
+    /** Preferência de legendas (Ajustes). */
+    val subtitleMode: StateFlow<SubtitleMode> = settings.subtitleMode
+
+    fun setSubtitleMode(mode: SubtitleMode) = settings.setSubtitleMode(mode)
 
     val state: StateFlow<AppUiState> = combine(
         library.loaded,

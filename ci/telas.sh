@@ -241,6 +241,7 @@ EOF
   key $R; focus "25. cartão Exemplo 2"
   adb logcat -c
   key $OK; sleep 15; check_log "aberto id=demo-2"; check_playing "DASH na TV"
+  check_log "legenda inicial=Port"
   key $U; sleep 1; key $OK; sleep 1; focus "26. controles, vídeo pausado"
   key $D; key $D; focus "27. fileira de baixo"
   for i in 1 2 3; do
@@ -320,6 +321,7 @@ else
   adb logcat -c
   tap_text "Assistir"; sleep 15; shot 18-player-tocando
   check_log "aberto id=demo-destaque-1"; check_playing "HLS"
+  check_log "legenda inicial=nenhuma (Automático)"
   C=$(( (W < H ? W : H) / 2 )); adb shell input tap $C $C; sleep 1; shot 19-player-controles
   # Queda de internet no meio do vídeo e volta.
   adb shell cmd connectivity airplane-mode enable; sleep 75; shot 20-sem-internet
@@ -329,6 +331,14 @@ else
   key KEYCODE_BACK; sleep 4; check_log "fechado (player liberado)"; shot 22-voltou-home
   check_text "Assistir" sim
   MEM_1=$(total_pss)
+  # Ajustes > Legendas "Sempre ligadas": o mesmo vídeo agora começa com legenda.
+  tap_tab "Ajustes" 5; tap_text "Mudar legendas"; shot 25-escolher-legendas; tap_text "Sempre ligadas"
+  check_text "Legendas: Sempre ligadas" sim
+  tap_tab "Início" 1; adb logcat -c
+  tap_text "Assistir"; sleep 12
+  plog | grep "legenda inicial" | sed 's/^/  anotação: /' >> "$STEPS"
+  if plog | grep "legenda inicial" | grep "Sempre ligadas" | grep -qv "=nenhuma"; then echo "ok: com 'Sempre ligadas' o vídeo começou com legenda" >> "$STEPS"; else echo "FALHOU: com 'Sempre ligadas' o vídeo não começou com legenda" >> "$STEPS"; fi
+  shot 26-legenda-sempre; key KEYCODE_BACK; sleep 3
   # Exemplo 3 = MP4 de 10 s, aberto pela busca: chega ao fim.
   tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; adb shell input text "Exemplo%s3"; sleep 1; key KEYCODE_BACK
   adb logcat -c

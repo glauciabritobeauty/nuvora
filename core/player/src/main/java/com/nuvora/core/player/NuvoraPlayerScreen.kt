@@ -89,6 +89,7 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
 import androidx.media3.ui.compose.state.rememberPresentationState
 import com.nuvora.core.data.model.PlaybackRequest
+import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.MessageState
 import com.nuvora.designsystem.components.NuvoraClickable
@@ -116,6 +117,7 @@ private const val SAVE_EVERY_MS = 10_000L
 fun NuvoraPlayerScreen(
     request: PlaybackRequest,
     startPositionMs: Long,
+    subtitleMode: SubtitleMode,
     onSaveProgress: (positionMs: Long, durationMs: Long) -> Unit,
     onClose: () -> Unit,
 ) {
@@ -123,7 +125,7 @@ fun NuvoraPlayerScreen(
     val isTv = NuvoraTheme.isTv
     val saveProgress by rememberUpdatedState(onSaveProgress)
 
-    val player = remember(request.id) { createPlayer(context, request, startPositionMs) }
+    val player = remember(request.id) { createPlayer(context, request, startPositionMs, subtitleMode) }
     val diag = remember { PlayerDiagnostics(context) }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
@@ -151,6 +153,7 @@ fun NuvoraPlayerScreen(
     // Ouve o player e, ao sair da tela, salva a posição e libera tudo.
     DisposableEffect(player) {
         var checkedStart = false
+        var subtitlesDecided = false
         val listener = object : Player.Listener {
             override fun onEvents(p: Player, events: Player.Events) {
                 isPlaying = p.isPlaying
@@ -182,6 +185,10 @@ fun NuvoraPlayerScreen(
 
             override fun onTracksChanged(newTracks: Tracks) {
                 tracks = newTracks
+                if (!subtitlesDecided && newTracks.audioReady()) {
+                    subtitlesDecided = true
+                    diag.log("legenda inicial=${applyInitialSubtitles(player, newTracks, subtitleMode)} (${subtitleMode.label})")
+                }
             }
         }
         player.addListener(listener)
@@ -388,7 +395,6 @@ fun NuvoraPlayerScreen(
                 duration = duration,
                 playFocus = playFocus,
                 hasAudioChoice = audioOptions(tracks).size > 1,
-                hasSubtitles = tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT },
                 onClose = onClose,
                 onTogglePlay = ::togglePlay,
                 onSeekBack = { player.seekBack(); interact() },
@@ -399,7 +405,9 @@ fun NuvoraPlayerScreen(
                     diag.log("opcoes audio: " + audioOptions(tracks).joinToString(" | ") { it.label })
                     picker = "audio"
                 },
-                onSubtitles = { picker = "legendas" },
+                onSubtitles = {
+                    picker = if (tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }) "legendas" else "sem-legenda"
+                },
                 onVolume = { up ->
                     val audio = context.getSystemService(AudioManager::class.java)
                     audio?.adjustStreamVolume(
@@ -416,6 +424,12 @@ fun NuvoraPlayerScreen(
     when (picker) {
         "audio" -> TrackPicker("Áudio", audioOptions(tracks), player, { diag.log("audio=$it") }) { picker = null }
         "legendas" -> TrackPicker("Legendas", subtitleOptions(tracks, player), player, { diag.log("legenda=$it") }) { picker = null }
+        "sem-legenda" -> NuvoraDialog(
+            title = "Legendas",
+            message = "Este vídeo não tem legenda disponível na fonte.",
+            onDismiss = { picker = null },
+            actions = listOf(DialogAction("Fechar", {})),
+        )
     }
 }
 
@@ -451,7 +465,6 @@ private fun Controls(
     duration: Long,
     playFocus: FocusRequester,
     hasAudioChoice: Boolean,
-    hasSubtitles: Boolean,
     onClose: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeekBack: () -> Unit,
@@ -526,9 +539,8 @@ private fun Controls(
                 if (hasAudioChoice) {
                     PlayerButton(NuvoraIcons.Audio, "Áudio", onAudio, showLabel = true)
                 }
-                if (hasSubtitles) {
-                    PlayerButton(NuvoraIcons.Subtitles, "Legendas", onSubtitles, showLabel = true)
-                }
+                // Sempre visível: quem precisa de legenda sabe na hora se o vídeo tem ou não.
+                PlayerButton(NuvoraIcons.Subtitles, "Legendas", onSubtitles, showLabel = true)
                 PlayerButton(NuvoraIcons.VolumeDown, "Diminuir volume", { onVolume(false) })
                 PlayerButton(NuvoraIcons.VolumeUp, "Aumentar volume", { onVolume(true) })
             }

@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nuvora.core.data.NuvoraViewModel
 import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.designsystem.components.BottomNavBar
@@ -72,6 +73,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val colors = NuvoraTheme.colors
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val subtitleMode by viewModel.subtitleMode.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
     var section by rememberSaveable { mutableStateOf<HomeSection?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -80,6 +82,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
     val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
+    var choosingSubtitles by remember { mutableStateOf(false) }
 
     val content = (state.home as? HomeUiState.Content)?.content
     val openItem: (String) -> Unit = { id ->
@@ -96,6 +99,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         NuvoraPlayerScreen(
             request = playing,
             startPositionMs = start,
+            subtitleMode = subtitleMode,
             onSaveProgress = { position, duration -> viewModel.saveProgress(playing, position, duration) },
             onClose = { playingId = null },
         )
@@ -196,6 +200,8 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                         onToggleDemo = { viewModel.setDemo(!state.demoOn) },
                         historyCount = state.history.size,
                         onClearHistory = { confirmClear = true },
+                        subtitleMode = subtitleMode,
+                        onChangeSubtitles = { choosingSubtitles = true },
                     )
                 }
             }
@@ -223,6 +229,20 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 },
                 DialogAction("Cancelar", {}),
             ),
+        )
+    }
+    if (choosingSubtitles) {
+        NuvoraDialog(
+            title = "Legendas",
+            message = "Como as legendas começam em cada vídeo. Dá para mudar em qualquer vídeo pelo botão Legendas.",
+            onDismiss = { choosingSubtitles = false },
+            actions = SubtitleMode.entries.map { mode ->
+                DialogAction(
+                    label = if (mode == subtitleMode) "${mode.label} (atual)" else mode.label,
+                    onClick = { viewModel.setSubtitleMode(mode) },
+                    style = if (mode == subtitleMode) NuvoraButtonStyle.Primary else NuvoraButtonStyle.Secondary,
+                )
+            } + DialogAction("Cancelar", {}),
         )
     }
     if (confirmClear) {

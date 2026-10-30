@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.designsystem.components.CategoryChip
 import com.nuvora.designsystem.components.EmptyState
 import com.nuvora.designsystem.components.NuvoraButton
@@ -233,10 +234,14 @@ fun TvSettingsScreen(
     onToggleDemo: () -> Unit,
     historyCount: Int,
     onClearHistory: () -> Unit,
+    subtitleMode: SubtitleMode,
+    onChangeSubtitles: () -> Unit,
 ) {
     TvScreen("Ajustes") {
         Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            InfoRow("Legendas: ${subtitleMode.label}", subtitleMode.description)
+            NuvoraButton(text = "Mudar legendas", icon = NuvoraIcons.Subtitles, style = NuvoraButtonStyle.Secondary, onClick = onChangeSubtitles)
             InfoRow(
                 "Histórico",
                 if (historyCount == 0) "Vazio. O histórico fica só neste aparelho." else "$historyCount itens, guardados só neste aparelho.",
