@@ -5,7 +5,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,19 +56,27 @@ fun NuvoraDialog(
             if (message != null) {
                 NuvoraText(message, NuvoraTheme.typography.body, color = colors.textSecondary, textAlign = TextAlign.Center)
             }
-            actions.forEachIndexed { index, action ->
-                NuvoraButton(
-                    text = action.label,
-                    style = action.style,
-                    onClick = {
-                        onDismiss()
-                        action.onClick()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = if (index == 0) 10.dp else 0.dp)
-                        .then(if (index == actions.lastIndex) Modifier.focusRequester(safeFocus) else Modifier),
-                )
+            // Muitas opções (ex.: idiomas) rolam dentro da janela, seguindo o foco do controle na TV.
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 340.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                actions.forEachIndexed { index, action ->
+                    NuvoraButton(
+                        text = action.label,
+                        style = action.style,
+                        onClick = {
+                            onDismiss()
+                            action.onClick()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = if (index == 0) 10.dp else 0.dp)
+                            .then(if (index == actions.lastIndex) Modifier.focusRequester(safeFocus) else Modifier),
+                    )
+                }
             }
         }
     }

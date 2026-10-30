@@ -72,6 +72,13 @@ internal fun PlaybackException.toFailure(): PlaybackFailure = when (errorCode) {
 /** Uma opção de áudio ou legenda para a pessoa escolher. */
 internal data class TrackOption(val label: String, val selected: Boolean, val apply: (Player) -> Unit)
 
+/**
+ * O mesmo idioma pode vir em várias qualidades (ex.: "Espanhol · estéreo" duas vezes).
+ * Mostra cada um uma vez só; fica marcado como atual se qualquer uma das versões estiver tocando.
+ */
+private fun List<TrackOption>.withoutRepeats(): List<TrackOption> =
+    groupBy { it.label }.values.map { same -> same.first().copy(selected = same.any { it.selected }) }
+
 private val ptBR = Locale("pt", "BR")
 
 private fun languageName(code: String?): String? =
@@ -80,7 +87,7 @@ private fun languageName(code: String?): String? =
         ?.replaceFirstChar { it.titlecase(ptBR) }
 
 @UnstableApi
-internal fun audioOptions(tracks: Tracks): List<TrackOption> = buildList {
+internal fun audioOptions(tracks: Tracks): List<TrackOption> = buildList<TrackOption> {
     tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.forEach { group ->
         for (i in 0 until group.length) {
             if (!group.isTrackSupported(i)) continue
@@ -107,14 +114,14 @@ internal fun audioOptions(tracks: Tracks): List<TrackOption> = buildList {
             )
         }
     }
-}
+}.withoutRepeats()
 
 @UnstableApi
 internal fun subtitleOptions(tracks: Tracks, player: Player): List<TrackOption> {
     val disabled = C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes
     val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
     val anySelected = textGroups.any { it.isSelected }
-    return buildList {
+    return buildList<TrackOption> {
         add(
             TrackOption("Desligadas", selected = disabled || !anySelected) { p ->
                 p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
@@ -140,7 +147,7 @@ internal fun subtitleOptions(tracks: Tracks, player: Player): List<TrackOption> 
                 )
             }
         }
-    }
+    }.withoutRepeats()
 }
 
 /** 75000 → "1:15"; 3725000 → "1:02:05". */
