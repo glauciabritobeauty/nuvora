@@ -40,6 +40,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.SubtitleMode
@@ -116,7 +118,7 @@ fun TvSearchScreen(
         NuvoraClickable(
             onClick = { editing = true },
             shape = shape,
-            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().semantics { contentDescription = "Campo de busca" },
             containerColor = if (editing) colors.surfaceRaised else colors.surface,
             focusedContainerColor = colors.surfaceRaised,
             border = BorderStroke(if (editing) 3.dp else 1.dp, if (editing) colors.accent else colors.outline),

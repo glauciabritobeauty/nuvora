@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nuvora.designsystem.components.EmptyState
 import com.nuvora.designsystem.components.NuvoraButton
@@ -122,7 +124,8 @@ fun SearchScreen(
             cursorBrush = SolidColor(colors.accent),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = dimens.screenPaddingH),
+                .padding(horizontal = dimens.screenPaddingH)
+                .semantics { contentDescription = "Campo de busca" },
             decorationBox = { field ->
                 Row(
                     modifier = Modifier

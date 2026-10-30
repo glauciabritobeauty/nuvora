@@ -293,7 +293,9 @@ EOF
       key "$2"; focus "  procurando '$1'"
     done
   }
-  key $BACK; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
+  # Reabre o app (se um Voltar a mais tiver saído dele) e vai ao menu lateral, até Ajustes (último item).
+  adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 3
+  for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
   key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $D; key $OK; sleep 2
   focus "33. tela Adicionar lista"; focus_until "Minha lista" $D
   key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
@@ -379,7 +381,7 @@ else
   if plog | grep "legenda inicial" | grep "Sempre ligadas" | grep -qv "=nenhuma"; then echo "ok: com 'Sempre ligadas' o vídeo começou com legenda" >> "$STEPS"; else echo "FALHOU: com 'Sempre ligadas' o vídeo não começou com legenda" >> "$STEPS"; fi
   shot 26-legenda-sempre; key KEYCODE_BACK; sleep 3
   # Exemplo 3 = MP4 de 10 s, aberto pela busca: chega ao fim.
-  tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; adb shell input text "Exemplo%s3"; sleep 1; key KEYCODE_BACK
+  tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Exemplo%s3"; sleep 1; key KEYCODE_BACK
   adb logcat -c
   tap_card "Exemplo 3"; sleep 25; check_log "fim"; shot 23-mp4-terminou
   key KEYCODE_BACK; sleep 4; check_log "fechado (player liberado)"
@@ -415,7 +417,7 @@ else
   tap_text "Ir para o Início"; sleep 5; shot 33-home-lista-gigante
   MEM_DEPOIS_LISTA=$(total_pss)
   echo "memória (KB) com a lista de 4 itens: $MEM_ANTES_LISTA; depois de importar 20.000 itens e abrir a Home: $MEM_DEPOIS_LISTA" >> "$STEPS"
-  tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; clear_field; adb shell input text "Item%s19999"; key KEYCODE_BACK
+  tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Item%s19999"; key KEYCODE_BACK
   sleep 2; check_text "Item 19999" sim; shot 34-busca-lista-gigante
   # Link errado: mensagem clara.
   add_link "Lista%serrada" "http://10.0.2.2:8000/nao-existe.m3u"
