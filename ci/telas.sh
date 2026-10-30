@@ -228,6 +228,7 @@ EOF
   check_log "aberto id="; check_playing "TV"
   key $R; sleep 2; check_log "avancou 10s"; shot 16-player-controles
   key $BACK; key $BACK; sleep 3; check_log "fechado (player liberado)"
+  plog | grep -E "tecla|voltar" | tail -8 | sed 's/^/  anotação: /' >> "$STEPS"
   focus "24. Voltar sai do player e volta à Home"; shot 17-voltou-home
   MEM_1=$(total_pss)
   # Troca de áudio no vídeo DASH com vários idiomas (Exemplo 2), só com o controle.

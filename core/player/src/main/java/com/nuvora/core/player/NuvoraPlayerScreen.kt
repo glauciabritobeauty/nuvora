@@ -295,6 +295,7 @@ fun NuvoraPlayerScreen(
     }
 
     BackHandler {
+        diag.log("voltar (controles=$controlsVisible)")
         if (isTv && controlsVisible && failure.value == null && !ended) controlsVisible = false else onClose()
     }
 
@@ -305,7 +306,10 @@ fun NuvoraPlayerScreen(
             .focusRequester(rootFocus)
             .focusable()
             .onPreviewKeyEvent {
-                if (it.type == KeyEventType.KeyDown) lastInteraction = System.nanoTime()
+                if (it.type == KeyEventType.KeyDown) {
+                    lastInteraction = System.nanoTime()
+                    diag.log("tecla ${it.key} (controles=$controlsVisible)")
+                }
                 false
             }
             .onKeyEvent { event ->
