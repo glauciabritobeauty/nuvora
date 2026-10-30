@@ -17,7 +17,11 @@ android {
 }
 
 dependencies {
-    // Só pela anotação @Immutable, que ajuda o Compose a evitar redesenhos.
+    // @Immutable ajuda o Compose a evitar redesenhos.
     api(platform(libs.compose.bom))
     api(libs.compose.runtime)
+    // ViewModel: guarda o estado da tela e sobrevive à rotação.
+    api(libs.lifecycle.viewmodel.compose)
+    api(libs.lifecycle.runtime.compose)
+    testImplementation(libs.junit)
 }

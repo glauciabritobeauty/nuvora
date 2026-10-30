@@ -16,9 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nuvora.core.data.NuvoraViewModel
 import com.nuvora.core.data.demo.DemoContent
-import com.nuvora.core.data.model.HomeUiState
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
+import com.nuvora.designsystem.components.NuvoraButtonStyle
+import com.nuvora.designsystem.components.NuvoraDialog
 import com.nuvora.designsystem.components.TvSideMenu
 import com.nuvora.designsystem.icons.NuvoraIcons
 import com.nuvora.designsystem.theme.NuvoraTheme
@@ -39,32 +45,30 @@ private enum class TvTab(val item: NavItem) {
 
 private val MENU = TvTab.entries.filter { it != TvTab.Settings }
 
+/** O que a pessoa segurou: um item do histórico ou dos favoritos. */
+private data class ItemOptions(val item: CardItem, val fromHistory: Boolean)
+
 /**
  * Experiência de TV: menu lateral + telas, tudo pelo controle remoto.
  * Botão Voltar: do conteúdo vai para o menu; do menu fora do Início vai para o Início; no menu do Início sai do app.
- * Sem fonte conectada, tudo mostra o estado real. A fonte entra na Etapa 7; salvar favoritos e histórico, na Etapa 5.
+ * Os dados vêm do [NuvoraViewModel] (o mesmo do celular); aqui fica só o que é de tela.
  */
 @Composable
-fun TvApp(versionName: String) {
+fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val colors = NuvoraTheme.colors
     val context = LocalContext.current
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(TvTab.Home) }
-    var demoOn by rememberSaveable { mutableStateOf(false) }
-    var favoriteIds by rememberSaveable { mutableStateOf(listOf<String>()) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuFocused by remember { mutableStateOf(false) }
+    var options by remember { mutableStateOf<ItemOptions?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
     val menuFocus = remember { FocusRequester() }
-
-    val favorites = remember(favoriteIds) { favoriteIds.toSet() }
-    val content = remember(demoOn, favorites) { if (demoOn) DemoContent.home(favorites) else null }
-    val homeState = content?.let { HomeUiState.Content(it) } ?: HomeUiState.NoSource
 
     val openItem: (String) -> Unit = {
         Toast.makeText(context, "Demonstração: a reprodução chega na Etapa 6.", Toast.LENGTH_SHORT).show()
     }
-    val toggleFavorite: (String) -> Unit = { id ->
-        favoriteIds = if (id in favorites) favoriteIds - id else favoriteIds + id
-    }
+    val showOptions: (CardItem, Boolean) -> Unit = { item, fromHistory -> options = ItemOptions(item, fromHistory) }
 
     BackHandler(enabled = !menuFocused || tab != TvTab.Home) {
         if (!menuFocused) {
@@ -86,53 +90,88 @@ fun TvApp(versionName: String) {
         Box(Modifier.weight(1f)) {
             when (tab) {
                 TvTab.Home -> TvHomeScreen(
-                    state = homeState,
-                    favoriteIds = favorites,
+                    state = state.home,
+                    favoriteIds = state.favoriteIds,
                     onPlay = openItem,
                     onOpen = openItem,
-                    onToggleFavorite = toggleFavorite,
+                    onToggleFavorite = viewModel::toggleFavorite,
                     onRetry = {},
                     onOpenSettings = { tab = TvTab.Settings },
-                    notice = if (demoOn) "Modo demonstração: cartões de exemplo, sem conteúdo real. Desligue em Ajustes." else null,
+                    onItemOptions = showOptions,
+                    notice = if (state.demoOn) "Modo demonstração: cartões de exemplo, sem conteúdo real. Desligue em Ajustes." else null,
                     demoAvailable = DemoContent.AVAILABLE,
-                    onStartDemo = { demoOn = true },
+                    onStartDemo = { viewModel.setDemo(true) },
                 )
                 TvTab.Search -> TvSearchScreen(
                     query = query,
                     onQueryChange = { query = it },
-                    hasSource = content != null,
-                    results = remember(query, demoOn) { if (demoOn) DemoContent.search(query) else emptyList() },
+                    hasSource = state.hasSource,
+                    results = remember(query, state.catalog) { viewModel.search(query) },
                     onOpen = openItem,
                     onOpenSettings = { tab = TvTab.Settings },
                 )
                 TvTab.Favorites -> TvListScreen(
                     title = "Favoritos",
-                    items = content?.favorites.orEmpty(),
+                    items = state.favorites,
                     emptyIcon = NuvoraIcons.Heart,
                     emptyTitle = "Nenhum favorito ainda",
                     emptyMessage = "Use \"Minha lista\" em um filme ou série para guardar aqui.",
                     onOpen = openItem,
+                    onLongPress = { showOptions(it, false) },
+                    hint = "Segure o OK em um item para remover.",
                 )
                 TvTab.History -> TvListScreen(
                     title = "Histórico",
-                    items = content?.history.orEmpty(),
+                    items = state.history,
                     emptyIcon = NuvoraIcons.History,
                     emptyTitle = "Nada assistido ainda",
                     emptyMessage = "O que você assistir aparece aqui, para voltar de onde parou.",
                     onOpen = openItem,
+                    onLongPress = { showOptions(it, true) },
+                    hint = "Segure o OK em um item para remover.",
+                    clearLabel = "Limpar histórico",
+                    onClear = { confirmClear = true },
                 )
                 TvTab.Categories -> TvCategoriesScreen(
-                    categories = content?.categories.orEmpty(),
-                    items = content?.recent.orEmpty(),
+                    categories = state.categories,
+                    items = state.catalog,
                     onOpen = openItem,
                 )
                 TvTab.Settings -> TvSettingsScreen(
                     versionName = versionName,
                     demoAvailable = DemoContent.AVAILABLE,
-                    demoOn = demoOn,
-                    onToggleDemo = { demoOn = !demoOn },
+                    demoOn = state.demoOn,
+                    onToggleDemo = { viewModel.setDemo(!state.demoOn) },
+                    historyCount = state.history.size,
+                    onClearHistory = { confirmClear = true },
                 )
             }
         }
+    }
+
+    options?.let { (item, fromHistory) ->
+        NuvoraDialog(
+            title = item.title,
+            onDismiss = { options = null },
+            actions = listOf(
+                if (fromHistory) {
+                    DialogAction("Remover do histórico", { viewModel.removeFromHistory(item.id) }, NuvoraButtonStyle.Primary)
+                } else {
+                    DialogAction("Remover dos favoritos", { viewModel.removeFavorite(item.id) }, NuvoraButtonStyle.Primary)
+                },
+                DialogAction("Cancelar", {}),
+            ),
+        )
+    }
+    if (confirmClear) {
+        NuvoraDialog(
+            title = "Limpar todo o histórico?",
+            message = "Isso apaga o histórico e o \"Continuar assistindo\" deste aparelho. Não dá para desfazer.",
+            onDismiss = { confirmClear = false },
+            actions = listOf(
+                DialogAction("Limpar", viewModel::clearHistory, NuvoraButtonStyle.Primary),
+                DialogAction("Cancelar", {}),
+            ),
+        )
     }
 }

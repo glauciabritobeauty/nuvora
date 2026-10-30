@@ -3,7 +3,7 @@ package com.nuvora.designsystem.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
@@ -20,6 +20,7 @@ import com.nuvora.designsystem.theme.NuvoraTheme
  * Base de tudo que se toca ou seleciona.
  * - Celular: área de toque comum.
  * - TV: recebe foco pelo controle, cresce levemente e ganha borda ciano (sem sombra nem desfoque).
+ * [onLongClick]: segurar o dedo (celular) ou segurar o OK (TV) abre opções.
  */
 @Composable
 fun NuvoraClickable(
@@ -30,6 +31,7 @@ fun NuvoraClickable(
     focusedContainerColor: Color = containerColor,
     border: BorderStroke? = null,
     focusedBorderColor: Color = NuvoraTheme.colors.accent,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (NuvoraTheme.isTv) {
@@ -37,6 +39,7 @@ fun NuvoraClickable(
         val contentColor = NuvoraTheme.colors.textPrimary
         Surface(
             onClick = onClick,
+            onLongClick = onLongClick,
             modifier = modifier,
             shape = ClickableSurfaceDefaults.shape(shape = shape),
             colors = ClickableSurfaceDefaults.colors(
@@ -60,7 +63,7 @@ fun NuvoraClickable(
                 .clip(shape)
                 .background(containerColor, shape)
                 .then(if (border != null) Modifier.border(border, shape) else Modifier)
-                .clickable(onClick = onClick),
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             content = content,
         )
     }

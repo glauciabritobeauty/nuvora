@@ -51,6 +51,47 @@ EOF
   sleep 2
 }
 
+# Lê a tela de novo para ui.xml (com as mesmas repetições do tap_text).
+read_ui() {
+  for tentativa in 1 2 3 4; do
+    adb shell rm -f /sdcard/ui.xml
+    adb shell uiautomator dump --compressed /sdcard/ui.xml > /dev/null 2>&1
+    adb shell cat /sdcard/ui.xml > ui.xml 2> /dev/null
+    if grep -q "<node" ui.xml 2> /dev/null; then return; fi
+    sleep 2
+  done
+}
+
+# Confere se um texto está (sim) ou não está (nao) na tela e registra o resultado.
+check_text() {
+  read_ui
+  if grep -qF "text=\"$1\"" ui.xml || grep -qF "content-desc=\"$1\"" ui.xml; then achou=sim; else achou=nao; fi
+  if [ "$achou" = "$2" ]; then echo "ok: '$1' na tela = $2" >> "$STEPS"; else echo "FALHOU: '$1' na tela = $achou (esperado $2)" >> "$STEPS"; fi
+}
+
+# Segura o dedo no cartão com essa descrição (o cartão, não o texto embaixo dele).
+long_press_card() {
+  read_ui
+  local pos
+  pos=$(python3 - "$1" <<'EOF'
+import re, sys
+for n in re.findall(r'<node [^>]*>', open('ui.xml', encoding='utf-8').read()):
+    if f'content-desc="{sys.argv[1]}"' in n:
+        a = list(map(int, re.findall(r'\d+', re.search(r'bounds="([^"]*)"', n).group(1))))
+        if a[3] - a[1] > 10:
+            print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
+            break
+EOF
+)
+  if [ -n "$pos" ]; then
+    adb shell input swipe $pos $pos 1200
+    echo "ok: segurou '$1'" >> "$STEPS"
+  else
+    echo "FALHOU: não achou o cartão '$1'" >> "$STEPS"
+  fi
+  sleep 2
+}
+
 adb install -r apk/*.apk
 adb logcat -c
 
@@ -102,6 +143,17 @@ EOF
   key $BACK; focus "12. Voltar no menu: volta ao Início"; shot 10-voltou-inicio
   key $U; key $U; key $OK; key $R; focus "13. menu Buscar + direita (campo)"
   key $OK; adb shell input text "Exemplo%s1"; sleep 2; key $BACK; focus "14. busca digitada"; shot 11-busca
+
+  # Etapa 5: histórico salvo, remover um item e limpar tudo, só com o controle.
+  key $BACK; key $BACK; focus "15. Voltar até o menu"
+  key $D; key $D; key $D; key $OK; focus "16. menu Histórico"; shot 12-historico
+  key $R; key $D; focus "17. primeiro cartão do histórico"
+  adb shell input keyevent --longpress KEYCODE_DPAD_CENTER; sleep 2; focus "18. segurou OK: janela abre no Cancelar"; shot 13-opcoes
+  key $U; focus "19. cima: Remover do histórico"; key $OK; sleep 2
+  check_text "Exemplo 1" nao
+  key $U; key $U; focus "20. botão Limpar histórico"; key $OK; sleep 1; focus "21. confirmação abre no Cancelar"
+  key $U; key $OK; sleep 2
+  check_text "Nada assistido ainda" sim; shot 14-historico-limpo
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -137,6 +189,21 @@ else
   sleep 4; shot 11-deitado
   adb shell settings put system user_rotation 0
   sleep 3; shot 12-em-pe-de-novo
+
+  # Etapa 5: histórico salvo, remover um item, limpar tudo e favoritos depois de fechar o app.
+  tap_tab "Histórico" 4; shot 13-historico
+  check_text "Exemplo 5" sim
+  long_press_card "Exemplo 5"; shot 14-opcoes
+  tap_text "Remover do histórico"
+  check_text "Exemplo 5" nao
+  tap_text "Limpar histórico"; shot 15-confirmar-limpar
+  tap_text "Limpar"
+  check_text "Nada assistido ainda" sim; shot 16-historico-limpo
+  adb shell am force-stop "$PKG"; sleep 2
+  adb shell am start -W -n "$PKG/.MainActivity" > /dev/null; sleep 5
+  tap_text "Ver demonstração"
+  tap_tab "Favoritos" 3
+  check_text "Destaque de exemplo 1" sim; shot 17-favorito-depois-de-fechar
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

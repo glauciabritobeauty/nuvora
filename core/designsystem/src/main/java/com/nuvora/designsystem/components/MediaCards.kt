@@ -44,12 +44,14 @@ fun PosterCard(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val dimens = NuvoraTheme.dimens
     val colors = NuvoraTheme.colors
     Column(modifier.width(dimens.posterWidth)) {
         NuvoraClickable(
             onClick = onClick,
+            onLongClick = onLongClick,
             shape = dimens.cardShape,
             // O título fica fora do cartão; repetido aqui para o leitor de tela e o controle saberem o que está em foco.
             modifier = Modifier
@@ -80,6 +82,7 @@ fun LandscapeCard(
     imageUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     progress: Float? = null,
     caption: String? = null,
 ) {
@@ -88,6 +91,7 @@ fun LandscapeCard(
     Column(modifier.width(dimens.landscapeWidth)) {
         NuvoraClickable(
             onClick = onClick,
+            onLongClick = onLongClick,
             shape = dimens.cardShape,
             modifier = Modifier
                 .size(dimens.landscapeWidth, dimens.landscapeHeight)

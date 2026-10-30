@@ -30,7 +30,7 @@ jobs:
         env:
           NUVORA_TESTE_KEYSTORE: ${{ runner.temp }}/teste.jks
           NUVORA_TESTE_SENHA: ${{ secrets.NUVORA_TESTE_SENHA }}
-        run: gradle assembleDebug assembleRelease --stacktrace
+        run: gradle testDebugUnitTest assembleDebug assembleRelease --stacktrace
       - name: Conferir assinatura do APK de teste (deve ser sempre a mesma)
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)

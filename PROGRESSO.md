@@ -19,8 +19,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
-| 4 | Home específica para Android TV | Entregue em 30/10/2026 — **aguardando aprovação** |
-| 5 | Navegação e gerenciamento de estado | Não iniciada |
+| 4 | Home específica para Android TV | **Aprovada** em 31/10/2026 ("Pode avançar"). TV real não testada (TV da Glaucia é Roku) |
+| 5 | Navegação e gerenciamento de estado | Em andamento (iniciada em 31/10/2026) |
 | 6 | Player (Media3) | Não iniciada |
 | 7 | Integração com fontes autorizadas | Não iniciada |
 | 8 | Otimização de desempenho e memória | Não iniciada |

@@ -26,18 +26,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nuvora.core.data.NuvoraViewModel
+import com.nuvora.core.data.demo.DemoContent
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.designsystem.components.BottomNavBar
+import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
 import com.nuvora.designsystem.components.NuvoraButton
 import com.nuvora.designsystem.components.NuvoraButtonStyle
 import com.nuvora.designsystem.components.NuvoraClickable
+import com.nuvora.designsystem.components.NuvoraDialog
 import com.nuvora.designsystem.components.NuvoraText
 import com.nuvora.designsystem.icons.NuvoraIcons
 import com.nuvora.designsystem.theme.NuvoraTheme
-import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.feature.mobile.home.HomeScreen
 import com.nuvora.feature.mobile.home.HomeSection
-import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.feature.mobile.screens.ListTabScreen
 import com.nuvora.feature.mobile.screens.SearchScreen
 import com.nuvora.feature.mobile.screens.SectionScreen
@@ -51,30 +57,31 @@ private enum class Tab(val item: NavItem) {
     Settings(NavItem("settings", "Ajustes", NuvoraIcons.Settings)),
 }
 
+/** O que a pessoa segurou: um item do histórico ou dos favoritos. */
+private data class ItemOptions(val item: CardItem, val fromHistory: Boolean)
+
 /**
  * Experiência de celular e tablet: Home + abas do menu inferior.
- * Sem fonte conectada, tudo mostra o estado real (vazio). A fonte entra na Etapa 7;
- * favoritos e histórico passam a ser salvos no aparelho na Etapa 5.
+ * Os dados vêm do [NuvoraViewModel] (favoritos e histórico salvos no aparelho);
+ * aqui fica só o que é de tela: aba atual, "Ver tudo" aberto, busca e janelas de opções.
  */
 @Composable
-fun MobileApp(versionName: String) {
+fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val colors = NuvoraTheme.colors
     val context = LocalContext.current
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
     var section by rememberSaveable { mutableStateOf<HomeSection?>(null) }
-    var demoOn by rememberSaveable { mutableStateOf(false) }
-    var favoriteIds by rememberSaveable { mutableStateOf(listOf<String>()) }
     var query by rememberSaveable { mutableStateOf("") }
+    var options by remember { mutableStateOf<ItemOptions?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
 
-    val favorites = remember(favoriteIds) { favoriteIds.toSet() }
-    val content = remember(demoOn, favorites) { if (demoOn) DemoContent.home(favorites) else null }
-    val homeState = content?.let { HomeUiState.Content(it) } ?: HomeUiState.NoSource
-
+    val content = (state.home as? HomeUiState.Content)?.content
     val openItem: (String) -> Unit = {
         Toast.makeText(context, "Demonstração: a reprodução chega na Etapa 6.", Toast.LENGTH_SHORT).show()
     }
-    val toggleFavorite: (String) -> Unit = { id ->
-        favoriteIds = if (id in favorites) favoriteIds - id else favoriteIds + id
+    val showOptions: (CardItem, HomeSection) -> Unit = { item, from ->
+        options = ItemOptions(item, fromHistory = from != HomeSection.Favorites)
     }
     val goSettings = { section = null; tab = Tab.Settings }
 
@@ -94,31 +101,38 @@ fun MobileApp(versionName: String) {
                 val items = when (open) {
                     HomeSection.ContinueWatching -> content?.continueWatching
                     HomeSection.Recent -> content?.recent
-                    HomeSection.Favorites -> content?.favorites
-                    HomeSection.History -> content?.history
+                    HomeSection.Favorites -> state.favorites
+                    HomeSection.History -> state.history
                 }.orEmpty()
-                SectionScreen(open.title, items, onBack = { section = null }, onOpen = openItem)
+                SectionScreen(
+                    title = open.title,
+                    items = items,
+                    onBack = { section = null },
+                    onOpen = openItem,
+                    onLongPress = if (open == HomeSection.Recent) null else { item -> showOptions(item, open) },
+                )
             } else {
                 when (tab) {
                     Tab.Home -> HomeScreen(
-                        state = homeState,
-                        favoriteIds = favorites,
+                        state = state.home,
+                        favoriteIds = state.favoriteIds,
                         onSearch = { tab = Tab.Search },
                         onPlay = openItem,
                         onOpen = openItem,
-                        onToggleFavorite = toggleFavorite,
+                        onToggleFavorite = viewModel::toggleFavorite,
                         onSeeAll = { section = it },
                         onRetry = {},
                         onOpenSettings = goSettings,
-                        notice = if (demoOn) {
-                            { DemoNotice(onExit = { demoOn = false }) }
+                        onItemOptions = showOptions,
+                        notice = if (state.demoOn) {
+                            { DemoNotice(onExit = { viewModel.setDemo(false) }) }
                         } else null,
                         emptyExtra = if (DemoContent.AVAILABLE) {
                             {
                                 NuvoraButton(
                                     text = "Ver demonstração",
                                     style = NuvoraButtonStyle.Secondary,
-                                    onClick = { demoOn = true },
+                                    onClick = { viewModel.setDemo(true) },
                                 )
                             }
                         } else null,
@@ -126,32 +140,40 @@ fun MobileApp(versionName: String) {
                     Tab.Search -> SearchScreen(
                         query = query,
                         onQueryChange = { query = it },
-                        hasSource = content != null,
-                        results = remember(query, demoOn) { if (demoOn) DemoContent.search(query) else emptyList() },
+                        hasSource = state.hasSource,
+                        results = remember(query, state.catalog) { viewModel.search(query) },
                         onOpen = openItem,
                         onOpenSettings = goSettings,
                     )
                     Tab.Favorites -> ListTabScreen(
                         title = "Favoritos",
-                        items = content?.favorites.orEmpty(),
+                        items = state.favorites,
                         emptyIcon = NuvoraIcons.Heart,
                         emptyTitle = "Nenhum favorito ainda",
                         emptyMessage = "Toque no coração de um filme ou série para guardar aqui.",
                         onOpen = openItem,
+                        onLongPress = { showOptions(it, HomeSection.Favorites) },
+                        hint = "Segure um item para remover.",
                     )
                     Tab.History -> ListTabScreen(
                         title = "Histórico",
-                        items = content?.history.orEmpty(),
+                        items = state.history,
                         emptyIcon = NuvoraIcons.History,
                         emptyTitle = "Nada assistido ainda",
                         emptyMessage = "O que você assistir aparece aqui, para voltar de onde parou.",
                         onOpen = openItem,
+                        onLongPress = { showOptions(it, HomeSection.History) },
+                        hint = "Segure um item para remover.",
+                        clearLabel = "Limpar histórico",
+                        onClear = { confirmClear = true },
                     )
                     Tab.Settings -> SettingsScreen(
                         versionName = versionName,
                         demoAvailable = DemoContent.AVAILABLE,
-                        demoOn = demoOn,
-                        onToggleDemo = { demoOn = !demoOn },
+                        demoOn = state.demoOn,
+                        onToggleDemo = { viewModel.setDemo(!state.demoOn) },
+                        historyCount = state.history.size,
+                        onClearHistory = { confirmClear = true },
                     )
                 }
             }
@@ -163,6 +185,32 @@ fun MobileApp(versionName: String) {
                 section = null
                 tab = Tab.entries.first { it.item.key == selected.key }
             },
+        )
+    }
+
+    options?.let { (item, fromHistory) ->
+        NuvoraDialog(
+            title = item.title,
+            onDismiss = { options = null },
+            actions = listOf(
+                if (fromHistory) {
+                    DialogAction("Remover do histórico", { viewModel.removeFromHistory(item.id) }, NuvoraButtonStyle.Primary)
+                } else {
+                    DialogAction("Remover dos favoritos", { viewModel.removeFavorite(item.id) }, NuvoraButtonStyle.Primary)
+                },
+                DialogAction("Cancelar", {}),
+            ),
+        )
+    }
+    if (confirmClear) {
+        NuvoraDialog(
+            title = "Limpar todo o histórico?",
+            message = "Isso apaga o histórico e o \"Continuar assistindo\" deste aparelho. Não dá para desfazer.",
+            onDismiss = { confirmClear = false },
+            actions = listOf(
+                DialogAction("Limpar", viewModel::clearHistory, NuvoraButtonStyle.Primary),
+                DialogAction("Cancelar", {}),
+            ),
         )
     }
 }

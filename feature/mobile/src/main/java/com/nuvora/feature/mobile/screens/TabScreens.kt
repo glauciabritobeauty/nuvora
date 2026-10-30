@@ -57,7 +57,12 @@ internal fun ScreenTitle(title: String, onBack: (() -> Unit)? = null) {
 
 /** Grade de capas, com mais colunas automaticamente no tablet. */
 @Composable
-internal fun CardGrid(items: List<CardItem>, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun CardGrid(
+    items: List<CardItem>,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onLongPress: ((CardItem) -> Unit)? = null,
+) {
     val dimens = NuvoraTheme.dimens
     LazyVerticalGrid(
         columns = GridCells.Adaptive(dimens.posterWidth),
@@ -67,17 +72,28 @@ internal fun CardGrid(items: List<CardItem>, onOpen: (String) -> Unit, modifier:
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         items(items, key = { it.id }) { item ->
-            PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+            PosterCard(
+                title = item.title,
+                imageUrl = item.imageUrl,
+                onClick = { onOpen(item.id) },
+                onLongClick = onLongPress?.let { { it(item) } },
+            )
         }
     }
 }
 
 /** "Ver tudo": a seção inteira em grade. */
 @Composable
-fun SectionScreen(title: String, items: List<CardItem>, onBack: () -> Unit, onOpen: (String) -> Unit) {
+fun SectionScreen(
+    title: String,
+    items: List<CardItem>,
+    onBack: () -> Unit,
+    onOpen: (String) -> Unit,
+    onLongPress: ((CardItem) -> Unit)? = null,
+) {
     Column(Modifier.fillMaxSize()) {
         ScreenTitle(title, onBack)
-        CardGrid(items, onOpen)
+        CardGrid(items, onOpen, onLongPress = onLongPress)
     }
 }
 
@@ -158,7 +174,12 @@ fun ListTabScreen(
     emptyTitle: String,
     emptyMessage: String,
     onOpen: (String) -> Unit,
+    onLongPress: (CardItem) -> Unit,
+    hint: String,
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null,
 ) {
+    val dimens = NuvoraTheme.dimens
     Column(Modifier.fillMaxSize()) {
         ScreenTitle(title)
         if (items.isEmpty()) {
@@ -169,7 +190,16 @@ fun ListTabScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
             )
         } else {
-            CardGrid(items, onOpen)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = dimens.screenPaddingH),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NuvoraText(hint, NuvoraTheme.typography.caption, color = NuvoraTheme.colors.textSecondary, modifier = Modifier.weight(1f))
+                if (clearLabel != null && onClear != null) {
+                    NuvoraButton(text = clearLabel, style = NuvoraButtonStyle.Secondary, onClick = onClear)
+                }
+            }
+            CardGrid(items, onOpen, Modifier.padding(top = 8.dp), onLongPress)
         }
     }
 }
@@ -180,6 +210,8 @@ fun SettingsScreen(
     demoAvailable: Boolean,
     demoOn: Boolean,
     onToggleDemo: () -> Unit,
+    historyCount: Int,
+    onClearHistory: () -> Unit,
 ) {
     val dimens = NuvoraTheme.dimens
     Column(Modifier.fillMaxSize()) {
@@ -189,6 +221,13 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            InfoRow(
+                "Histórico",
+                if (historyCount == 0) "Vazio. O histórico fica só neste aparelho." else "$historyCount itens, guardados só neste aparelho.",
+            )
+            if (historyCount > 0) {
+                NuvoraButton(text = "Limpar histórico", style = NuvoraButtonStyle.Secondary, onClick = onClearHistory)
+            }
             InfoRow("Versão do app", versionName)
             if (demoAvailable) {
                 InfoRow(

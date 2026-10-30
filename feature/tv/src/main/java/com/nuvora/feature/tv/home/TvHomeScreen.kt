@@ -58,6 +58,7 @@ fun TvHomeScreen(
     onToggleFavorite: (String) -> Unit,
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit,
+    onItemOptions: (CardItem, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     notice: String? = null,
     demoAvailable: Boolean = false,
@@ -100,7 +101,7 @@ fun TvHomeScreen(
                     ErrorState(onRetry, Modifier.fillMaxWidth().padding(top = 48.dp), actionModifier = Modifier.focusRequester(firstAction))
                 }
             }
-            is HomeUiState.Content -> tvHomeContent(state.content, favoriteIds, firstAction, onPlay, onOpen, onToggleFavorite)
+            is HomeUiState.Content -> tvHomeContent(state.content, favoriteIds, firstAction, onPlay, onOpen, onToggleFavorite, onItemOptions)
         }
     }
 
@@ -115,7 +116,9 @@ private fun LazyListScope.tvHomeContent(
     onPlay: (String) -> Unit,
     onOpen: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onItemOptions: (CardItem, Boolean) -> Unit,
 ) {
+    // Segurar o OK num cartão do histórico ou dos favoritos abre a opção de remover.
     content.hero.firstOrNull()?.let { hero ->
         item(key = "hero") { TvHero(hero, hero.id in favoriteIds, firstAction, onPlay, onToggleFavorite) }
     }
@@ -128,6 +131,7 @@ private fun LazyListScope.tvHomeContent(
                     caption = item.caption,
                     progress = item.progress,
                     onClick = { onPlay(item.id) },
+                    onLongClick = { onItemOptions(item, true) },
                 )
             }
         }
@@ -154,14 +158,14 @@ private fun LazyListScope.tvHomeContent(
     if (content.favorites.isNotEmpty()) {
         item(key = "favorites") {
             TvRow("Favoritos", content.favorites) { item ->
-                PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+                PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) }, onLongClick = { onItemOptions(item, false) })
             }
         }
     }
     if (content.history.isNotEmpty()) {
         item(key = "history") {
             TvRow("Histórico", content.history) { item ->
-                PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+                PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) }, onLongClick = { onItemOptions(item, true) })
             }
         }
     }

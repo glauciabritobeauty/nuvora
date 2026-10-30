@@ -68,7 +68,7 @@ private fun TvScreen(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun TvGrid(items: List<CardItem>, onOpen: (String) -> Unit) {
+private fun TvGrid(items: List<CardItem>, onOpen: (String) -> Unit, onLongPress: ((CardItem) -> Unit)? = null) {
     val dimens = NuvoraTheme.dimens
     LazyVerticalGrid(
         columns = GridCells.Adaptive(dimens.posterWidth + dimens.itemSpacing),
@@ -77,7 +77,12 @@ private fun TvGrid(items: List<CardItem>, onOpen: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         items(items, key = { it.id }) { item ->
-            PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+            PosterCard(
+                title = item.title,
+                imageUrl = item.imageUrl,
+                onClick = { onOpen(item.id) },
+                onLongClick = onLongPress?.let { { it(item) } },
+            )
         }
     }
 }
@@ -173,12 +178,22 @@ fun TvListScreen(
     emptyTitle: String,
     emptyMessage: String,
     onOpen: (String) -> Unit,
+    onLongPress: (CardItem) -> Unit,
+    hint: String,
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null,
 ) {
     TvScreen(title) {
         if (items.isEmpty()) {
             EmptyState(emptyIcon, emptyTitle, emptyMessage, Modifier.fillMaxWidth().padding(top = 32.dp))
         } else {
-            TvGrid(items, onOpen)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NuvoraText(hint, NuvoraTheme.typography.caption, color = NuvoraTheme.colors.textSecondary, modifier = Modifier.weight(1f))
+                if (clearLabel != null && onClear != null) {
+                    NuvoraButton(text = clearLabel, style = NuvoraButtonStyle.Secondary, onClick = onClear)
+                }
+            }
+            TvGrid(items, onOpen, onLongPress)
         }
     }
 }
@@ -216,10 +231,19 @@ fun TvSettingsScreen(
     demoAvailable: Boolean,
     demoOn: Boolean,
     onToggleDemo: () -> Unit,
+    historyCount: Int,
+    onClearHistory: () -> Unit,
 ) {
     TvScreen("Ajustes") {
         Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            InfoRow(
+                "Histórico",
+                if (historyCount == 0) "Vazio. O histórico fica só neste aparelho." else "$historyCount itens, guardados só neste aparelho.",
+            )
+            if (historyCount > 0) {
+                NuvoraButton(text = "Limpar histórico", style = NuvoraButtonStyle.Secondary, onClick = onClearHistory)
+            }
             InfoRow("Versão do app", versionName)
             if (demoAvailable) {
                 InfoRow(

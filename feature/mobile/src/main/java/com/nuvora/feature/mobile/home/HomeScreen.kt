@@ -59,6 +59,7 @@ fun HomeScreen(
     onSeeAll: (HomeSection) -> Unit,
     onRetry: () -> Unit,
     onOpenSettings: () -> Unit,
+    onItemOptions: (CardItem, HomeSection) -> Unit,
     modifier: Modifier = Modifier,
     notice: (@Composable () -> Unit)? = null,
     emptyExtra: (@Composable () -> Unit)? = null,
@@ -97,7 +98,7 @@ fun HomeScreen(
                     ErrorState(onRetry = onRetry, modifier = Modifier.fillMaxWidth().padding(top = 48.dp))
                 }
             }
-            is HomeUiState.Content -> homeContent(state.content, favoriteIds, onPlay, onOpen, onToggleFavorite, onSeeAll)
+            is HomeUiState.Content -> homeContent(state.content, favoriteIds, onPlay, onOpen, onToggleFavorite, onSeeAll, onItemOptions)
         }
     }
 }
@@ -109,6 +110,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeContent(
     onOpen: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onSeeAll: (HomeSection) -> Unit,
+    onItemOptions: (CardItem, HomeSection) -> Unit,
 ) {
     if (content.hero.isNotEmpty()) {
         item(key = "hero") { HeroPager(content.hero, favoriteIds, onPlay, onToggleFavorite) }
@@ -122,6 +124,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeContent(
                     caption = item.caption,
                     progress = item.progress,
                     onClick = { onPlay(item.id) },
+                    onLongClick = { onItemOptions(item, HomeSection.ContinueWatching) },
                 )
             }
         }
@@ -162,19 +165,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.homeContent(
     }
     if (content.favorites.isNotEmpty()) {
         item(key = "favorites") {
-            CardRow(HomeSection.Favorites, content.favorites, onSeeAll) { item -> Poster(item, onOpen) }
+            CardRow(HomeSection.Favorites, content.favorites, onSeeAll) { item -> Poster(item, onOpen) { onItemOptions(item, HomeSection.Favorites) } }
         }
     }
     if (content.history.isNotEmpty()) {
         item(key = "history") {
-            CardRow(HomeSection.History, content.history, onSeeAll) { item -> Poster(item, onOpen) }
+            CardRow(HomeSection.History, content.history, onSeeAll) { item -> Poster(item, onOpen) { onItemOptions(item, HomeSection.History) } }
         }
     }
 }
 
 @Composable
-private fun Poster(item: CardItem, onOpen: (String) -> Unit) {
-    PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+private fun Poster(item: CardItem, onOpen: (String) -> Unit, onLongClick: (() -> Unit)? = null) {
+    PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) }, onLongClick = onLongClick)
 }
 
 @Composable

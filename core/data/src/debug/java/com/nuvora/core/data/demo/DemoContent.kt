@@ -1,50 +1,52 @@
 package com.nuvora.core.data.demo
 
+import com.nuvora.core.data.library.HistoryEntry
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HeroItem
-import com.nuvora.core.data.model.HomeContent
 
 /**
  * Demonstração do layout, SÓ na versão de teste (debug).
- * Todos os itens são identificados como exemplo e não têm capa.
+ * Todos os itens são identificados como exemplo, não têm capa e usam ids começando com [ID_PREFIX].
  * A versão final usa o arquivo de src/release, que não tem demonstração.
  */
 object DemoContent {
     const val AVAILABLE = true
+    const val ID_PREFIX = "demo-"
 
-    private val categories = listOf("Filmes", "Séries", "Ao vivo", "Documentários")
+    val categories = listOf("Filmes", "Séries", "Ao vivo", "Documentários")
 
-    private val items = List(16) { i ->
+    val items: List<CardItem> = List(16) { i ->
         val category = categories[i % categories.size]
-        CardItem(id = "demo-${i + 1}", title = "Exemplo ${i + 1}", imageUrl = null, category = category, caption = category)
+        CardItem(id = "${ID_PREFIX}${i + 1}", title = "Exemplo ${i + 1}", imageUrl = null, category = category, caption = category)
     }
 
-    private val hero = List(3) { i ->
+    val hero: List<HeroItem> = List(3) { i ->
         HeroItem(
-            id = "demo-destaque-${i + 1}",
+            id = "${ID_PREFIX}destaque-${i + 1}",
             title = "Destaque de exemplo ${i + 1}",
             subtitle = "Demonstração · sem conteúdo real",
             imageUrl = null,
         )
     }
 
-    fun home(favorites: Set<String>): HomeContent? {
-        val heroCards = hero.map { CardItem(it.id, it.title, it.imageUrl) }
-        return HomeContent(
-            hero = hero,
-            continueWatching = items.take(4).mapIndexed { i, item ->
-                item.copy(
-                    progress = listOf(0.62f, 0.3f, 0.85f, 0.12f)[i],
-                    caption = "Faltam ${listOf(19, 35, 7, 44)[i]} min",
-                )
-            },
-            categories = categories,
-            recent = items,
-            favorites = (heroCards + items).filter { it.id in favorites },
-            history = items.drop(4).take(5),
-        )
+    /**
+     * Histórico de exemplo gravado no aparelho quando a demonstração é ligada,
+     * para dar para testar "Continuar assistindo" e a exclusão antes de existir o player.
+     * Os 4 primeiros estão pela metade; os outros, terminados.
+     */
+    fun historySeed(now: Long): List<HistoryEntry> {
+        val minute = 60_000L
+        val positions = listOf(31, 15, 43, 6, 50, 50, 50, 50, 50)
+        return positions.mapIndexed { i, position ->
+            val item = items[i]
+            HistoryEntry(
+                id = item.id,
+                title = item.title,
+                imageUrl = null,
+                positionMs = position * minute,
+                durationMs = 50 * minute,
+                updatedAt = now - i * minute,
+            )
+        }
     }
-
-    fun search(query: String): List<CardItem> =
-        if (query.isBlank()) emptyList() else items.filter { it.title.contains(query.trim(), ignoreCase = true) }
 }
