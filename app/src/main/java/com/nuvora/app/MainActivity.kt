@@ -10,9 +10,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.nuvora.app.catalog.TvCatalog
 import com.nuvora.designsystem.theme.NuvoraTheme
 import com.nuvora.feature.mobile.MobileApp
+import com.nuvora.feature.tv.TvApp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         val isTv = isTelevision()
         setContent {
             NuvoraTheme(isTv = isTv) {
-                if (isTv) TvCatalog() else MobileApp(versionName = BuildConfig.VERSION_NAME)
+                if (isTv) TvApp(versionName = BuildConfig.VERSION_NAME) else MobileApp(versionName = BuildConfig.VERSION_NAME)
             }
         }
     }

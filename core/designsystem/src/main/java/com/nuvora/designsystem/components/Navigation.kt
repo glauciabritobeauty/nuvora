@@ -20,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -77,6 +79,7 @@ fun BottomNavBar(
 /**
  * Menu lateral da TV: só ícones, navegado pelas setas.
  * O item da tela atual fica com fundo elevado e ícone ciano; o item em foco ganha a borda ciano.
+ * [selectedFocusRequester] permite devolver o foco ao item da tela atual (ex.: botão Voltar).
  */
 @Composable
 fun TvSideMenu(
@@ -85,6 +88,7 @@ fun TvSideMenu(
     selectedKey: String,
     onSelect: (NavItem) -> Unit,
     modifier: Modifier = Modifier,
+    selectedFocusRequester: FocusRequester? = null,
 ) {
     val colors = NuvoraTheme.colors
     Column(
@@ -98,20 +102,26 @@ fun TvSideMenu(
     ) {
         NuvoraMark(Modifier.size(30.dp))
         Spacer(Modifier.height(18.dp))
-        items.forEach { TvMenuItem(it, it.key == selectedKey, onSelect) }
-        Spacer(Modifier.weight(1f))
-        bottomItems.forEach { TvMenuItem(it, it.key == selectedKey, onSelect) }
+        (items + listOf(null) + bottomItems).forEach { item ->
+            if (item == null) {
+                Spacer(Modifier.weight(1f))
+            } else {
+                val selected = item.key == selectedKey
+                TvMenuItem(item, selected, onSelect, if (selected) selectedFocusRequester else null)
+            }
+        }
     }
 }
 
 @Composable
-private fun TvMenuItem(item: NavItem, selected: Boolean, onSelect: (NavItem) -> Unit) {
+private fun TvMenuItem(item: NavItem, selected: Boolean, onSelect: (NavItem) -> Unit, focusRequester: FocusRequester?) {
     val colors = NuvoraTheme.colors
     NuvoraClickable(
         onClick = { onSelect(item) },
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .size(48.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .semantics {
                 contentDescription = item.label
                 this.selected = selected

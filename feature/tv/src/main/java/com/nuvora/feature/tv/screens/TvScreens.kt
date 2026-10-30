@@ -1,0 +1,228 @@
+package com.nuvora.feature.tv.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.designsystem.components.CategoryChip
+import com.nuvora.designsystem.components.EmptyState
+import com.nuvora.designsystem.components.NuvoraButton
+import com.nuvora.designsystem.components.NuvoraButtonStyle
+import com.nuvora.designsystem.components.NuvoraIcon
+import com.nuvora.designsystem.components.NuvoraText
+import com.nuvora.designsystem.components.PosterCard
+import com.nuvora.designsystem.icons.NuvoraIcons
+import com.nuvora.designsystem.theme.NuvoraTheme
+
+private const val ALL = "Todos"
+
+/** Moldura das telas da TV: título + conteúdo, dentro da área segura. */
+@Composable
+private fun TvScreen(title: String, content: @Composable () -> Unit) {
+    val dimens = NuvoraTheme.dimens
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(start = 32.dp, end = dimens.screenPaddingH, top = dimens.screenPaddingV),
+    ) {
+        NuvoraText(title, NuvoraTheme.typography.title, modifier = Modifier.padding(bottom = 16.dp))
+        content()
+    }
+}
+
+@Composable
+private fun TvGrid(items: List<CardItem>, onOpen: (String) -> Unit) {
+    val dimens = NuvoraTheme.dimens
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(dimens.posterWidth + dimens.itemSpacing),
+        contentPadding = PaddingValues(8.dp, 10.dp, 8.dp, dimens.screenPaddingV),
+        horizontalArrangement = Arrangement.spacedBy(dimens.itemSpacing),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        items(items, key = { it.id }) { item ->
+            PosterCard(title = item.title, imageUrl = item.imageUrl, onClick = { onOpen(item.id) })
+        }
+    }
+}
+
+@Composable
+fun TvSearchScreen(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    hasSource: Boolean,
+    results: List<CardItem>,
+    onOpen: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val colors = NuvoraTheme.colors
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    TvScreen("Buscar") {
+        // No controle: OK no campo abre o teclado da TV.
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            textStyle = NuvoraTheme.typography.body.copy(color = colors.textPrimary),
+            cursorBrush = SolidColor(colors.accent),
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .onFocusChanged { focused = it.isFocused },
+            decorationBox = { field ->
+                Row(
+                    modifier = Modifier
+                        .background(if (focused) colors.surfaceRaised else colors.surface, shape)
+                        .border(if (focused) 3.dp else 1.dp, if (focused) colors.accent else colors.outline, shape)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    NuvoraIcon(NuvoraIcons.Search, tint = colors.textSecondary)
+                    Spacer(Modifier.width(12.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (query.isEmpty()) {
+                            NuvoraText("Filmes, séries e canais", NuvoraTheme.typography.body, color = colors.textSecondary, maxLines = 1)
+                        }
+                        field()
+                    }
+                }
+            },
+        )
+        Spacer(Modifier.padding(top = 16.dp))
+        when {
+            !hasSource -> EmptyState(
+                icon = NuvoraIcons.Source,
+                title = "Nada para buscar ainda",
+                message = "Conecte uma fonte de conteúdo autorizada e a busca funciona aqui.",
+                actionLabel = "Abrir ajustes",
+                onAction = onOpenSettings,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            query.isBlank() -> NuvoraText("Digite o nome do que você procura.", NuvoraTheme.typography.body, color = colors.textSecondary)
+            results.isEmpty() -> EmptyState(
+                icon = NuvoraIcons.Search,
+                title = "Nada encontrado",
+                message = "Não achamos \"$query\". Confira a escrita ou tente outra palavra.",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            else -> TvGrid(results, onOpen)
+        }
+    }
+}
+
+/** Favoritos ou Histórico: grade quando há itens, aviso amigável quando está vazio. */
+@Composable
+fun TvListScreen(
+    title: String,
+    items: List<CardItem>,
+    emptyIcon: ImageVector,
+    emptyTitle: String,
+    emptyMessage: String,
+    onOpen: (String) -> Unit,
+) {
+    TvScreen(title) {
+        if (items.isEmpty()) {
+            EmptyState(emptyIcon, emptyTitle, emptyMessage, Modifier.fillMaxWidth().padding(top = 32.dp))
+        } else {
+            TvGrid(items, onOpen)
+        }
+    }
+}
+
+/** Categorias: escolhe uma e a grade mostra só o que é dela. */
+@Composable
+fun TvCategoriesScreen(categories: List<String>, items: List<CardItem>, onOpen: (String) -> Unit) {
+    var category by rememberSaveable { mutableStateOf(ALL) }
+    val filtered = remember(category, items) { if (category == ALL) items else items.filter { it.category == category } }
+    TvScreen("Categorias") {
+        if (items.isEmpty()) {
+            EmptyState(
+                NuvoraIcons.Categories,
+                "Nenhuma categoria ainda",
+                "As categorias aparecem quando houver uma fonte de conteúdo conectada.",
+                Modifier.fillMaxWidth().padding(top = 32.dp),
+            )
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(listOf(ALL) + categories) { label ->
+                    CategoryChip(label = label, selected = label == category, onClick = { category = label })
+                }
+            }
+            TvGrid(filtered, onOpen)
+        }
+    }
+}
+
+@Composable
+fun TvSettingsScreen(
+    versionName: String,
+    demoAvailable: Boolean,
+    demoOn: Boolean,
+    onToggleDemo: () -> Unit,
+) {
+    TvScreen("Ajustes") {
+        Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            InfoRow("Versão do app", versionName)
+            if (demoAvailable) {
+                InfoRow(
+                    "Demonstração (só na versão de teste)",
+                    if (demoOn) "Ligada: a Home mostra cartões de exemplo." else "Desligada: a Home mostra o estado real.",
+                )
+                NuvoraButton(
+                    text = if (demoOn) "Desligar demonstração" else "Ver demonstração",
+                    style = NuvoraButtonStyle.Secondary,
+                    onClick = onToggleDemo,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(title: String, value: String) {
+    val colors = NuvoraTheme.colors
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.surface, shape)
+            .border(1.dp, colors.outline, shape)
+            .padding(18.dp),
+    ) {
+        NuvoraText(title, NuvoraTheme.typography.label)
+        NuvoraText(value, NuvoraTheme.typography.caption, color = colors.textSecondary, modifier = Modifier.padding(top = 4.dp))
+    }
+}

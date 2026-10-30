@@ -1,10 +1,10 @@
-package com.nuvora.feature.mobile.demo
+package com.nuvora.core.data.demo
 
-import com.nuvora.feature.mobile.home.CardItem
-import com.nuvora.feature.mobile.home.HomeContent
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HomeContent
 
 /** Versão final: sem demonstração. */
-internal object DemoContent {
+object DemoContent {
     const val AVAILABLE = false
 
     @Suppress("UNUSED_PARAMETER")

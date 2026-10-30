@@ -14,8 +14,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 |---|---|---|
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
-| 3 | Home para celular | Entregue em 30/10/2026 — **aguardando aprovação** |
-| 4 | Home específica para Android TV | Não iniciada |
+| 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
+| 4 | Home específica para Android TV | Em andamento (iniciada em 30/10/2026) |
 | 5 | Navegação e gerenciamento de estado | Não iniciada |
 | 6 | Player (Media3) | Não iniciada |
 | 7 | Integração com fontes autorizadas | Não iniciada |
@@ -209,6 +209,9 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | 29/10/2026 | Login no GitHub (`gh auth status`) | OK — conta `glauciabritobeauty`, permissões de repositório e de automação (workflow) |
 
 Nenhum teste de aplicativo foi executado ainda (não há código).
+
+## Requisitos levantados para a Etapa 5 (ainda não implementados)
+- 30/10/2026 — Glaucia perguntou sobre excluir os últimos assistidos. Proposta: "Remover" item a item (Histórico e Continuar assistindo; toque longo no celular, botão de opções na TV) + "Limpar histórico" com confirmação na aba Histórico e em Ajustes. **Autorizado pela Glaucia em 30/10/2026 — incluir obrigatoriamente na Etapa 5 e avisá-la quando for implementado.**
 
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)
 - 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).

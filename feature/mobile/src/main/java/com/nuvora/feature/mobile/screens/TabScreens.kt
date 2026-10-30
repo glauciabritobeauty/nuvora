@@ -31,7 +31,7 @@ import com.nuvora.designsystem.components.NuvoraText
 import com.nuvora.designsystem.components.PosterCard
 import com.nuvora.designsystem.icons.NuvoraIcons
 import com.nuvora.designsystem.theme.NuvoraTheme
-import com.nuvora.feature.mobile.home.CardItem
+import com.nuvora.core.data.model.CardItem
 
 /** Título de tela (abas e "Ver tudo"), com seta de voltar opcional. */
 @Composable

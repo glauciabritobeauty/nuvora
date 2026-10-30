@@ -72,6 +72,7 @@ fun MessageState(
     actionLabel: String? = null,
     actionIcon: ImageVector? = null,
     onAction: (() -> Unit)? = null,
+    actionModifier: Modifier = Modifier,
 ) {
     val colors = NuvoraTheme.colors
     val typography = NuvoraTheme.typography
@@ -108,7 +109,7 @@ fun MessageState(
                 text = actionLabel,
                 icon = actionIcon,
                 onClick = onAction,
-                modifier = Modifier.padding(top = 20.dp),
+                modifier = Modifier.padding(top = 20.dp).then(actionModifier),
             )
         }
     }
@@ -120,7 +121,9 @@ fun ErrorState(
     modifier: Modifier = Modifier,
     title: String = "Não foi possível carregar",
     message: String = "Algo deu errado do nosso lado. Tente de novo em instantes.",
+    actionModifier: Modifier = Modifier,
 ) = MessageState(
+    actionModifier = actionModifier,
     icon = NuvoraIcons.Refresh,
     title = title,
     message = message,
@@ -131,7 +134,8 @@ fun ErrorState(
 )
 
 @Composable
-fun NoConnectionState(onRetry: () -> Unit, modifier: Modifier = Modifier) = MessageState(
+fun NoConnectionState(onRetry: () -> Unit, modifier: Modifier = Modifier, actionModifier: Modifier = Modifier) = MessageState(
+    actionModifier = actionModifier,
     icon = NuvoraIcons.NoConnection,
     title = "Sem internet",
     message = "Verifique o Wi-Fi ou os dados móveis. Assim que a conexão voltar, é só tentar de novo.",
@@ -149,6 +153,7 @@ fun EmptyState(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    actionModifier: Modifier = Modifier,
 ) = MessageState(
     icon = icon,
     title = title,
@@ -156,4 +161,5 @@ fun EmptyState(
     modifier = modifier,
     actionLabel = actionLabel,
     onAction = onAction,
+    actionModifier = actionModifier,
 )

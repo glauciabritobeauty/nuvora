@@ -40,6 +40,10 @@ import com.nuvora.designsystem.components.PosterCard
 import com.nuvora.designsystem.components.SectionHeader
 import com.nuvora.designsystem.icons.NuvoraIcons
 import com.nuvora.designsystem.theme.NuvoraTheme
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HeroItem
+import com.nuvora.core.data.model.HomeContent
+import com.nuvora.core.data.model.HomeUiState
 
 private const val ALL = "Todos"
 

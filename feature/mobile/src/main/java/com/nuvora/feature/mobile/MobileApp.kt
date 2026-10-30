@@ -34,10 +34,10 @@ import com.nuvora.designsystem.components.NuvoraClickable
 import com.nuvora.designsystem.components.NuvoraText
 import com.nuvora.designsystem.icons.NuvoraIcons
 import com.nuvora.designsystem.theme.NuvoraTheme
-import com.nuvora.feature.mobile.demo.DemoContent
+import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.feature.mobile.home.HomeScreen
 import com.nuvora.feature.mobile.home.HomeSection
-import com.nuvora.feature.mobile.home.HomeUiState
+import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.feature.mobile.screens.ListTabScreen
 import com.nuvora.feature.mobile.screens.SearchScreen
 import com.nuvora.feature.mobile.screens.SectionScreen

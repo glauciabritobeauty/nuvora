@@ -1,15 +1,15 @@
-package com.nuvora.feature.mobile.demo
+package com.nuvora.core.data.demo
 
-import com.nuvora.feature.mobile.home.CardItem
-import com.nuvora.feature.mobile.home.HeroItem
-import com.nuvora.feature.mobile.home.HomeContent
+import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HeroItem
+import com.nuvora.core.data.model.HomeContent
 
 /**
  * Demonstração do layout, SÓ na versão de teste (debug).
  * Todos os itens são identificados como exemplo e não têm capa.
  * A versão final usa o arquivo de src/release, que não tem demonstração.
  */
-internal object DemoContent {
+object DemoContent {
     const val AVAILABLE = true
 
     private val categories = listOf("Filmes", "Séries", "Ao vivo", "Documentários")

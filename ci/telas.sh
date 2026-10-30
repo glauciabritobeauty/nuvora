@@ -64,14 +64,44 @@ sleep 6
 shot 01-inicio
 
 if [ "$NAME" = "tv" ]; then
-  key KEYCODE_DPAD_CENTER; shot 02-ok-no-assistir
-  key KEYCODE_DPAD_DOWN; shot 03-seta-baixo
-  key KEYCODE_DPAD_RIGHT; key KEYCODE_DPAD_RIGHT; shot 04-seta-direita
-  key KEYCODE_DPAD_DOWN; key KEYCODE_DPAD_DOWN; shot 05-cartazes
-  for i in 1 2 3; do key KEYCODE_DPAD_DOWN; done
-  shot 06-estados
-  for i in 1 2 3 4 5 6; do adb shell input keyevent KEYCODE_DPAD_LEFT; done
-  sleep 2; shot 07-menu-lateral
+  # Registra em qual elemento está o foco do controle (com tudo o que está escrito dentro dele).
+  focus() {
+    adb shell uiautomator dump --compressed /sdcard/ui.xml > /dev/null 2>&1
+    adb shell cat /sdcard/ui.xml > ui.xml
+    local f
+    f=$(python3 - <<'EOF'
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse('ui.xml').getroot()
+except Exception:
+    print('(leitura da tela falhou)'); raise SystemExit
+for n in root.iter('node'):
+    if n.get('focused') == 'true':
+        nomes = [m.get('text') or m.get('content-desc') for m in n.iter('node')]
+        print(' / '.join(x for x in nomes if x) or '(sem nome)')
+        break
+else:
+    print('(nada em foco)')
+EOF
+)
+    echo "$1 -> foco em: $f" >> "$STEPS"
+  }
+  U=KEYCODE_DPAD_UP; D=KEYCODE_DPAD_DOWN; L=KEYCODE_DPAD_LEFT; R=KEYCODE_DPAD_RIGHT; OK=KEYCODE_DPAD_CENTER; BACK=KEYCODE_BACK
+
+  focus "1. abertura sem fonte"
+  key $D; focus "2. seta baixo"
+  key $OK; sleep 2; focus "3. OK em Ver demonstração"; shot 02-demonstracao
+  key $R; key $OK; focus "4. direita + OK (Minha lista)"; shot 03-minha-lista
+  key $D; key $R; key $R; focus "5. baixo + direita x2 (Continuar assistindo)"; shot 04-continuar
+  key $D; key $R; key $R; key $OK; focus "6. categorias: OK em Séries"; shot 05-categoria-series
+  key $D; focus "7. baixo (recentes filtrados)"; shot 06-recentes
+  key $U; focus "8. cima: deve voltar em Séries"
+  key $D; key $D; focus "9. baixo x2 (Favoritos)"; shot 07-favoritos
+  key $BACK; focus "10. Voltar: vai para o menu"; shot 08-voltar-menu
+  key $D; key $OK; focus "11. menu: OK em Favoritos"; shot 09-aba-favoritos
+  key $BACK; focus "12. Voltar no menu: volta ao Início"; shot 10-voltou-inicio
+  key $U; key $U; key $OK; key $R; focus "13. menu Buscar + direita (campo)"
+  key $OK; adb shell input text "Exemplo%s1"; sleep 2; key $BACK; focus "14. busca digitada"; shot 11-busca
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
