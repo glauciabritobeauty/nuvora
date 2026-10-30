@@ -10,8 +10,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Só fontes de conteúdo autorizadas. Nada de APIs, servidores ou credenciais inventados; nada que contorne DRM.
 
 ## Onde paramos (30/10/2026, noite)
-- Etapa 4 (Home da TV) **entregue**: a última rodada de testes passou (detalhes na seção da Etapa 4). Falta a Glaucia aprovar.
-- Ao retomar: apresentar a entrega da Etapa 4 no formato combinado e pedir aprovação. APK: `apk/nuvora-etapa4-assinatura-fixa.apk`.
+- Etapa 5 **entregue** (detalhes na seção da Etapa 5). Falta a Glaucia aprovar e confirmar se o APK atualizou por cima no celular.
+- APK: `apk/nuvora-etapa5.apk`.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -20,7 +20,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 4 | Home específica para Android TV | **Aprovada** em 31/10/2026 ("Pode avançar"). TV real não testada (TV da Glaucia é Roku) |
-| 5 | Navegação e gerenciamento de estado | Em andamento (iniciada em 31/10/2026) |
+| 5 | Navegação e gerenciamento de estado | Entregue em 31/10/2026 — **aguardando aprovação** |
 | 6 | Player (Media3) | Não iniciada |
 | 7 | Integração com fontes autorizadas | Não iniciada |
 | 8 | Otimização de desempenho e memória | Não iniciada |
@@ -213,6 +213,27 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 
 ---
 
+## ETAPA 5 — Navegação, estado e salvamento no aparelho
+
+### O que foi feito
+- **Favoritos e histórico salvos no aparelho** (banco SQLite do próprio Android, sem biblioteca extra). Título e capa ficam guardados junto. Nada sai do aparelho.
+- **"Cérebro" compartilhado** (`core/data/NuvoraViewModel`): o mesmo para celular e TV; junta a fonte (por enquanto só a demonstração) com favoritos e histórico; sobrevive à rotação; estado de carregamento real enquanto lê o banco.
+- **Continuar assistindo vem do histórico real**: aparece o que está entre 5% e 95% assistido, com "Faltam X min" arredondado para cima. A demonstração grava um histórico de exemplo (4 pela metade, 5 terminados), já que o player só chega na Etapa 6.
+- **Exclusão do histórico (pedido da Glaucia):** segurar o cartão (celular) ou segurar o OK (TV) → "Remover do histórico"; botão "Limpar histórico" com confirmação na aba Histórico e em Ajustes. Também "Remover dos favoritos" do mesmo jeito. A janela abre com o foco em "Cancelar" (evita apagar sem querer na TV).
+- Itens de exemplo só aparecem com a demonstração ligada (ids `demo-`).
+- **Mudanças em relação ao plano da Etapa 1 (avisadas antes):** SQLite do Android em vez da biblioteca Room; navegação própria e simples em vez da biblioteca Navigation (menos peso). Novas dependências: `lifecycle-viewmodel-compose` e `lifecycle-runtime-compose` 2.11.0 (oficiais) e JUnit 4.13.2 (só para testes, não vai no app).
+- Versão 0.5.0. Assinada com a chave fixa de teste: deve **atualizar por cima** da versão da Etapa 4.
+
+### Testes (31/10/2026)
+- Testes automáticos das regras do "Continuar assistindo" (5 casos: espiada, pela metade, terminado, duração desconhecida, arredondamento): **passaram**.
+- Celular e tablet: Histórico mostra os itens → segurar "Exemplo 5" → Remover → some; Limpar histórico → confirmar → "Nada assistido ainda"; fechar o app à força, reabrir → favorito "Destaque de exemplo 1" continua lá. **Todos OK.**
+- TV, só controle: segurar OK no cartão → janela abre no "Cancelar" → cima → "Remover do histórico" → o cartão some; "Limpar histórico" → confirmação abre no "Cancelar" → confirmar → vazio. **Todos OK.** Roteiro da Etapa 4 continua passando.
+- App aberto sem fechar e sem erros nos 3. Memória: celular 63 MB, tablet 60 MB, TV 80 MB.
+- Problemas do próprio emulador (aviso "Pixel Launcher isn't responding") atrapalharam duas rodadas do tablet; o teste agora esconde esses avisos de outros apps (travamentos do NUVORA continuam sendo registrados).
+- Não testado ainda: atualização por cima num celular real (primeira prova é este APK).
+
+---
+
 ## Decisões
 | Data | Decisão |
 |---|---|
@@ -235,7 +256,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 Nenhum teste de aplicativo foi executado ainda (não há código).
 
 ## Requisitos levantados para a Etapa 5 (ainda não implementados)
-- 30/10/2026 — Glaucia perguntou sobre excluir os últimos assistidos. Proposta: "Remover" item a item (Histórico e Continuar assistindo; toque longo no celular, botão de opções na TV) + "Limpar histórico" com confirmação na aba Histórico e em Ajustes. **Autorizado pela Glaucia em 30/10/2026 — incluir obrigatoriamente na Etapa 5 e avisá-la quando for implementado.**
+- 30/10/2026 — Glaucia perguntou sobre excluir os últimos assistidos. Proposta: "Remover" item a item (Histórico e Continuar assistindo; toque longo no celular, botão de opções na TV) + "Limpar histórico" com confirmação na aba Histórico e em Ajustes. **Autorizado em 30/10/2026 — IMPLEMENTADO na Etapa 5 (31/10/2026) e avisado.**
 
 ## Compatibilidade de aparelhos (30/10/2026)
 - Funciona: Android TV, Google TV, Chromecast com Google TV, TV Box Android, celulares e tablets Android.
