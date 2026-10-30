@@ -13,8 +13,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | Etapa | Descrição | Situação |
 |---|---|---|
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
-| 2 | Identidade visual e componentes reutilizáveis | Entregue em 29/10/2026 — **aguardando aprovação** |
-| 3 | Home para celular | Não iniciada |
+| 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
+| 3 | Home para celular | Em andamento (iniciada em 29/10/2026) |
 | 4 | Home específica para Android TV | Não iniciada |
 | 5 | Navegação e gerenciamento de estado | Não iniciada |
 | 6 | Player (Media3) | Não iniciada |
@@ -179,6 +179,12 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | 29/10/2026 | Login no GitHub (`gh auth status`) | OK — conta `glauciabritobeauty`, permissões de repositório e de automação (workflow) |
 
 Nenhum teste de aplicativo foi executado ainda (não há código).
+
+## Requisitos levantados para a Etapa 7 (ainda não implementados)
+- 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).
+- Login de servidor: se a pessoa colar um link de lista que já traz usuário e senha dentro, o app preenche servidor/usuário/senha sozinho. Opção futura (só se a Glaucia tiver um fornecedor autorizado próprio, com documentação): servidor já configurado no app, e a pessoa digita só usuário e senha — **decisão pendente**.
+- 29/10/2026 — O login da lista **fica salvo** até a pessoa sair: dados criptografados no aparelho (Android Keystore), nunca em texto puro nem em logs; botão "Sair" apaga tudo.
+- Aviso no cadastro da lista: a pessoa declara ter direito de acesso ao conteúdo.
 
 ## Pendências (dependem da Glaucia)
 1. Aprovar (ou ajustar) a arquitetura e as tecnologias da Etapa 1.

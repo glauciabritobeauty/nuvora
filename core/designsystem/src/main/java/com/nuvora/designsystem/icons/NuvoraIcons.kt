@@ -61,6 +61,7 @@ object NuvoraIcons {
         )
     }
     val ChevronRight by lazy { icon("chevron_right", filled = false, "M9 6l6 6l-6 6") }
+    val ChevronLeft by lazy { icon("chevron_left", filled = false, "M15 6l-6 6l6 6") }
 
     private const val HEART = "M19.5 12.57L12 20l-7.5 -7.43A5 5 0 1 1 12 6.01a5 5 0 1 1 7.5 6.57z"
 

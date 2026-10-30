@@ -11,8 +11,8 @@ android {
         applicationId = "com.nuvora.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     buildTypes {
@@ -30,11 +30,13 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
     implementation(project(":core:designsystem"))
+    implementation(project(":feature:mobile"))
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.compose.ui.tooling)

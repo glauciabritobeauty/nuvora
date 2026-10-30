@@ -22,10 +22,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.8.2"
-      - name: Compilar (debug)
-        run: gradle assembleDebug --stacktrace
-      - name: Tamanho do APK
-        run: ls -l app/build/outputs/apk/debug/
+      - name: Compilar (teste e versão final otimizada)
+        run: gradle assembleDebug assembleRelease --stacktrace
+      - name: Tamanho dos APKs
+        run: ls -l app/build/outputs/apk/debug/ app/build/outputs/apk/release/
       - uses: actions/upload-artifact@v7
         with:
           name: nuvora-debug
@@ -43,6 +43,10 @@ jobs:
             target: google_apis
             arch: x86_64
             profile: pixel_5
+          - name: tablet
+            target: google_apis
+            arch: x86_64
+            profile: pixel_c
           - name: tv
             target: android-tv
             arch: x86
