@@ -14,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.nuvora.designsystem.icons.NuvoraIcons
@@ -49,7 +51,10 @@ fun PosterCard(
         NuvoraClickable(
             onClick = onClick,
             shape = dimens.cardShape,
-            modifier = Modifier.size(dimens.posterWidth, dimens.posterHeight),
+            // O título fica fora do cartão; repetido aqui para o leitor de tela e o controle saberem o que está em foco.
+            modifier = Modifier
+                .size(dimens.posterWidth, dimens.posterHeight)
+                .semantics { contentDescription = title },
             containerColor = colors.surfaceRaised,
             border = BorderStroke(1.dp, colors.outline),
         ) {
@@ -84,7 +89,9 @@ fun LandscapeCard(
         NuvoraClickable(
             onClick = onClick,
             shape = dimens.cardShape,
-            modifier = Modifier.size(dimens.landscapeWidth, dimens.landscapeHeight),
+            modifier = Modifier
+                .size(dimens.landscapeWidth, dimens.landscapeHeight)
+                .semantics { contentDescription = if (caption != null) "$title, $caption" else title },
             containerColor = colors.surfaceRaised,
             border = BorderStroke(1.dp, colors.outline),
         ) {
