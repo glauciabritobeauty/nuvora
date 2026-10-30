@@ -256,6 +256,11 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 - Memória (PSS, após limpeza de memória): celular 60 MB na Home → 79 MB após a 1ª saída do player → 84 MB após a 5ª; tablet 59 → 78 → 83; TV 81 → 92 → 94. A subida da 1ª vez é o Android carregando as peças de vídeo (uma vez só); entre a 1ª e a 5ª saída cresce menos de 7% → **sem vazamento** (meta ±10%).
 - O NUVORA não fechou sozinho em nenhuma rodada. Os erros "AndroidRuntime" vistos no registro foram da ferramenta de leitura de tela do emulador (uiautomator), não do app.
 - **Defeitos achados e corrigidos na etapa:** Voltar na TV não saía do vídeo; lista de áudio com idiomas repetidos; janela de opções maior que a tela da TV sem rolar; botão de voltar 10 s ilegível sobre vídeo claro; legenda no meio da tela com controles abertos.
+- **Ajustes pedidos pela Glaucia antes da aprovação (31/10/2026), feitos e testados:**
+  - Português do Brasil primeiro (áudio e legenda), depois qualquer português.
+  - Legendas: botão sempre visível no player (avisa "Este vídeo não tem legenda disponível na fonte" quando não há); preferência em Ajustes — Automático (padrão: legenda em português quando o áudio não é português), Sempre ligadas (prefere legenda para surdos), Desligadas; a pessoa muda em qualquer vídeo. Teste: Automático → vídeo em inglês sem legenda PT começa sem legenda; "Sempre ligadas" → o mesmo vídeo começa com legenda; vídeo com legenda PT → começa em português. **OK**.
+  - Simplicidade: botões do player com palavra ("Sair", "10 s", "Áudio", "Legendas", "Volume"); opção "Letra maior" em Ajustes (+20% em todos os textos, lembrada). Teste: ligar e ver a Home com letra maior. **OK**.
+  - TV: com os controles na tela, uma seta/OK sempre leva o foco aos controles (antes, às vezes o OK não fazia nada). **OK** (pausar pelo controle confirmado).
 - Pendências: na TV, ao sair do player às vezes nenhum item fica em foco (a primeira seta leva ao menu) — corrigir na Etapa 8/9; acessibilidade da faixa inferior (já registrada); teste em aparelho real.
 
 ---
