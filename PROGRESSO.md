@@ -217,7 +217,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | Data | Decisão |
 |---|---|
 | 29/10/2026 | Projeto em `C:\Projetos\nuvora` (fora do OneDrive, para não sincronizar arquivos de compilação) |
-| 29/10/2026 | Testes reais em celular, tablet e Android TV / Google TV da Glaucia |
+| 29/10/2026 | Testes reais em celular e tablet da Glaucia (a TV dela é Roku — ver "Compatibilidade de aparelhos") |
 | 29/10/2026 | Referência VEXORA recebida (imagem do painel de marca): fundo azul-marinho, azul → violeta, logo em "V" com gradiente, tipografia **Poppins**. Fonte trocada de Manrope para Poppins na proposta |
 | 29/10/2026 | Apresentados os modelos (desenhos, não código) da Home do celular e da Home da TV, mais a explicação de leveza. Aguardando opinião da Glaucia |
 | 29/10/2026 | Celular e tablet usam o mesmo desenho de Home aprovado pela Glaucia (menu inferior). No tablet a tela mais larga mostra mais cartões por fileira, sem mudar o layout. Ajuste anotado: o rótulo "Ao vivo" quebrou em duas linhas no desenho; no app as categorias ficam numa linha só |
@@ -229,6 +229,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | Data | Teste | Resultado |
 |---|---|---|
 | 29/10/2026 | Verificação do ambiente (Java, SDK, Studio, adb, RAM, CPU, disco) | Feito — ver 1.1 |
+| 31/10/2026 | **Celular real da Glaucia** (APK da Etapa 4) | "Ficou bom". Problema: o APK novo **não instalou por cima** do antigo; foi preciso desinstalar e instalar de novo. Causa: cada compilação na nuvem assina o app com uma chave de teste diferente. Correção proposta: chave de teste fixa — aguardando autorização |
 | 29/10/2026 | Login no GitHub (`gh auth status`) | OK — conta `glauciabritobeauty`, permissões de repositório e de automação (workflow) |
 
 Nenhum teste de aplicativo foi executado ainda (não há código).
@@ -239,6 +240,7 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 ## Compatibilidade de aparelhos (30/10/2026)
 - Funciona: Android TV, Google TV, Chromecast com Google TV, TV Box Android, celulares e tablets Android.
 - **Testar na Etapa 9 (autorizado pela Glaucia):** Amazon Fire TV e Fire Stick (Fire OS é baseado em Android; o APK deve rodar, mas ainda não foi testado).
+- 31/10/2026 — **Correção:** a TV da Glaucia é **Roku** (não roda o app). Hoje não há aparelho de TV Android real para teste; a TV só foi testada em emulador. Plano da Glaucia: pedir para um familiar com TV Android testar depois. Até lá, TV testada só em emulador. (Alternativa, se precisar: aparelho de teste barato — Fire Stick ou Chromecast com Google TV.) Para o familiar instalar, preparar na Etapa 9 um link do APK e um passo a passo simples.
 - Não funciona: Roku, Samsung (Tizen), LG (webOS), Apple TV. App para Roku seria um projeto separado — ideia futura, não está no escopo.
 
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)

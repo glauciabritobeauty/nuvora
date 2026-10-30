@@ -22,8 +22,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.8.2"
+      - name: Preparar chave fixa de teste
+        env:
+          CHAVE: ${{ secrets.NUVORA_TESTE_CHAVE }}
+        run: echo "$CHAVE" | base64 -d > "$RUNNER_TEMP/teste.jks"
       - name: Compilar (teste e versão final otimizada)
+        env:
+          NUVORA_TESTE_KEYSTORE: ${{ runner.temp }}/teste.jks
+          NUVORA_TESTE_SENHA: ${{ secrets.NUVORA_TESTE_SENHA }}
         run: gradle assembleDebug assembleRelease --stacktrace
+      - name: Conferir assinatura do APK de teste (deve ser sempre a mesma)
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/*.apk | grep -E "SHA-256|DN"
+      - name: Apagar chave
+        if: always()
+        run: rm -f "$RUNNER_TEMP/teste.jks"
       - name: Tamanho dos APKs
         run: ls -l app/build/outputs/apk/debug/ app/build/outputs/apk/release/
       - uses: actions/upload-artifact@v7

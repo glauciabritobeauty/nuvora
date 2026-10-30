@@ -15,7 +15,24 @@ android {
         versionName = "0.4.0"
     }
 
+    // Chave fixa das versões de teste (vem dos segredos do GitHub na compilação na nuvem).
+    // Com ela, cada versão nova instala por cima da anterior sem apagar os dados.
+    val testKeystore = System.getenv("NUVORA_TESTE_KEYSTORE")
+    signingConfigs {
+        if (testKeystore != null) {
+            create("teste") {
+                storeFile = file(testKeystore)
+                storePassword = System.getenv("NUVORA_TESTE_SENHA")
+                keyAlias = "nuvora-teste"
+                keyPassword = System.getenv("NUVORA_TESTE_SENHA")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (testKeystore != null) signingConfig = signingConfigs.getByName("teste")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
