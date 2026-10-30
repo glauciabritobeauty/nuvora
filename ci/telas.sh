@@ -227,17 +227,23 @@ EOF
   key $OK; sleep 15; shot 15-player-tocando
   check_log "aberto id="; check_playing "TV"
   key $R; sleep 2; check_log "avancou 10s"; shot 16-player-controles
-  key $BACK; key $BACK; sleep 3; check_log "fechado (player liberado)"
-  plog | grep -E "tecla|voltar" | tail -8 | sed 's/^/  anotação: /' >> "$STEPS"
-  focus "24. Voltar sai do player e volta à Home"; shot 17-voltou-home
+  # Voltar até o player fechar (a 1ª pode só esconder os controles).
+  for i in 1 2 3; do key $BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done
+  check_log "fechado (player liberado)"
+  plog | grep -E "voltar" | sed 's/^/  anotação: /' >> "$STEPS"
+  sleep 2; focus "24. voltou à Home"; shot 17-voltou-home
   MEM_1=$(total_pss)
   # Troca de áudio no vídeo DASH com vários idiomas (Exemplo 2), só com o controle.
-  key $D; key $D; key $R; focus "25. cartão Exemplo 2"
+  for i in 1 2 3 4 5 6; do
+    if echo "$LAST_FOCUS" | grep -q "^Exemplo 1"; then break; fi
+    key $D; focus "  descendo até a fileira de recentes"
+  done
+  key $R; focus "25. cartão Exemplo 2"
   adb logcat -c
-  key $OK; sleep 15; check_playing "DASH na TV"
+  key $OK; sleep 15; check_log "aberto id=demo-2"; check_playing "DASH na TV"
   key $U; sleep 1; key $OK; sleep 1; focus "26. controles, vídeo pausado"
   key $D; key $D; focus "27. fileira de baixo"
-  for i in 1 2 3 4 5 6; do
+  for i in 1 2 3; do
     if echo "$LAST_FOCUS" | grep -q "Áudio"; then break; fi
     key $L; focus "  procurando o botão Áudio"
   done
@@ -247,9 +253,11 @@ EOF
     key $U; focus "  procurando Espanhol"
   done
   key $OK; sleep 2; check_log "audio=Espanhol"; shot 18-audio-trocado
-  key $BACK; key $BACK; sleep 3; check_log "fechado (player liberado)"; focus "29. voltou à Home"
-  for i in 1 2 3; do key $U; done; focus "30. Assistir"
-  for i in 1 2 3; do key $OK; sleep 8; key $BACK; key $BACK; sleep 3; done
+  adb logcat -c
+  for i in 1 2 3; do key $BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done
+  check_log "fechado (player liberado)"; focus "29. voltou à Home"
+  for i in 1 2 3 4 5; do key $U; done; focus "30. topo da Home"
+  for i in 1 2 3; do key $OK; sleep 8; adb logcat -c; for j in 1 2 3; do key $BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done; sleep 2; done
   MEM_4=$(total_pss)
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 else
