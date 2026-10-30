@@ -242,7 +242,7 @@ EOF
   adb logcat -c
   key $OK; sleep 15; check_log "aberto id=demo-2"; check_playing "DASH na TV"
   check_log "legenda inicial=Port"
-  key $U; sleep 1; key $OK; sleep 1; focus "26. controles, vídeo pausado"
+  key $U; sleep 1; key $OK; sleep 1; check_log "pausou"; focus "26. controles, vídeo pausado"
   key $D; key $D; focus "27. fileira de baixo"
   for i in 1 2 3; do
     if echo "$LAST_FOCUS" | grep -q "Áudio"; then break; fi

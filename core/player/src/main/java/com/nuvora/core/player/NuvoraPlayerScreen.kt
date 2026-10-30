@@ -280,7 +280,9 @@ fun NuvoraPlayerScreen(
 
     val rootFocus = remember { FocusRequester() }
     val playFocus = remember { FocusRequester() }
+    var rootFocused by remember { mutableStateOf(false) }
     LaunchedEffect(controlsVisible, failure.value) {
+        delay(50) // deixa os controles entrarem na tela antes de pedir o foco
         runCatching { if (controlsVisible && failure.value == null) playFocus.requestFocus() else rootFocus.requestFocus() }
     }
 
@@ -295,8 +297,14 @@ fun NuvoraPlayerScreen(
                 player.seekTo(0)
                 player.play()
             }
-            player.isPlaying -> player.pause()
-            else -> player.play()
+            player.isPlaying -> {
+                player.pause()
+                diag.log("pausou")
+            }
+            else -> {
+                player.play()
+                diag.log("tocou")
+            }
         }
         interact()
     }
@@ -311,6 +319,7 @@ fun NuvoraPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(rootFocus)
+            .onFocusChanged { rootFocused = it.isFocused }
             .focusable()
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) {
@@ -320,7 +329,13 @@ fun NuvoraPlayerScreen(
                 false
             }
             .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown || controlsVisible) return@onKeyEvent false
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                // Controles na tela, mas o foco ficou no fundo: leva o foco para os controles (nunca "tecla morta").
+                if (controlsVisible) {
+                    if (!rootFocused || event.key == Key.Back || event.key == Key.Escape) return@onKeyEvent false
+                    if (event.key == Key.DirectionCenter || event.key == Key.Enter) togglePlay() else runCatching { playFocus.requestFocus() }
+                    return@onKeyEvent true
+                }
                 when (event.key) {
                     // Voltar segue para o BackHandler (sair do vídeo); não pode virar "mostrar controles".
                     Key.Back, Key.Escape -> false

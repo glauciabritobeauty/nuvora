@@ -178,6 +178,12 @@ private fun Tracks.selectedFormat(type: Int): Format? =
     groups.firstOrNull { it.type == type && it.isSelected }
         ?.let { group -> (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let(group::getTrackFormat) }
 
+private fun disableText(player: Player) {
+    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        .build()
+}
+
 /** Quando os idiomas do vídeo ficam conhecidos: o áudio já foi escolhido? */
 internal fun Tracks.audioReady(): Boolean = groups.any { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
 
@@ -194,13 +200,18 @@ internal fun applyInitialSubtitles(player: Player, tracks: Tracks, mode: Subtitl
         SubtitleMode.Off -> "desligada"
         SubtitleMode.Auto -> {
             val audioLanguage = tracks.selectedFormat(C.TRACK_TYPE_AUDIO)?.language.orEmpty()
-            if (audioLanguage.startsWith("pt")) {
-                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                    .build()
-                "desligada (áudio já em português)"
-            } else {
-                current()
+            val textLanguage = tracks.selectedFormat(C.TRACK_TYPE_TEXT)?.language.orEmpty()
+            when {
+                audioLanguage.startsWith("pt") -> {
+                    disableText(player)
+                    "desligada (áudio já em português)"
+                }
+                // Legenda que o vídeo liga sozinho em outro idioma (ex.: inglês) não ajuda: só português no automático.
+                !textLanguage.startsWith("pt") -> {
+                    disableText(player)
+                    "nenhuma"
+                }
+                else -> current()
             }
         }
         SubtitleMode.Always -> {
