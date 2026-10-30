@@ -124,6 +124,7 @@ fun NuvoraPlayerScreen(
     val saveProgress by rememberUpdatedState(onSaveProgress)
 
     val player = remember(request.id) { createPlayer(context, request, startPositionMs) }
+    val diag = remember { PlayerDiagnostics(context) }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
     var ended by remember { mutableStateOf(false) }
@@ -141,6 +142,7 @@ fun NuvoraPlayerScreen(
     }
 
     fun retry() {
+        diag.log("retomou")
         failure.value = null
         player.prepare()
         player.play()
@@ -161,14 +163,16 @@ fun NuvoraPlayerScreen(
                     checkedStart = true
                     if (p.duration > 0 && p.currentPosition >= p.duration * 95 / 100) p.seekTo(0)
                 }
-                if (ended) {
+                if (ended && events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
                     controlsVisible = true
                     save()
+                    diag.log("fim")
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 failure.value = error.toFailure()
+                diag.log("falha=${failure.value}")
                 controlsVisible = false
             }
 
@@ -181,10 +185,12 @@ fun NuvoraPlayerScreen(
             }
         }
         player.addListener(listener)
+        diag.log("aberto id=${request.id}")
         onDispose {
             save()
             player.removeListener(listener)
             player.release()
+            diag.log("fechado (player liberado)")
         }
     }
 
@@ -230,6 +236,14 @@ fun NuvoraPlayerScreen(
             view.keepScreenOn = false
             insets?.show(WindowInsetsCompat.Type.systemBars())
             if (previousOrientation != null) activity.requestedOrientation = previousOrientation
+        }
+    }
+
+    // Só na versão de teste: anota a posição a cada 3 s, para o teste automático conferir que o vídeo anda.
+    LaunchedEffect(player, isPlaying) {
+        while (isPlaying && diag.enabled) {
+            diag.log("posicao=${player.currentPosition / 1000}")
+            delay(3_000)
         }
     }
 
@@ -297,8 +311,8 @@ fun NuvoraPlayerScreen(
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown || controlsVisible) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> { player.seekBack(); interact(); true }
-                    Key.DirectionRight -> { player.seekForward(); interact(); true }
+                    Key.DirectionLeft -> { player.seekBack(); diag.log("voltou 10s"); interact(); true }
+                    Key.DirectionRight -> { player.seekForward(); diag.log("avancou 10s"); interact(); true }
                     Key.MediaPlayPause -> { togglePlay(); true }
                     else -> { interact(); true }
                 }
@@ -391,20 +405,29 @@ fun NuvoraPlayerScreen(
     }
 
     when (picker) {
-        "audio" -> TrackPicker("Áudio", audioOptions(tracks), player) { picker = null }
-        "legendas" -> TrackPicker("Legendas", subtitleOptions(tracks, player), player) { picker = null }
+        "audio" -> TrackPicker("Áudio", audioOptions(tracks), player, { diag.log("audio=$it") }) { picker = null }
+        "legendas" -> TrackPicker("Legendas", subtitleOptions(tracks, player), player, { diag.log("legenda=$it") }) { picker = null }
     }
 }
 
 @Composable
-private fun TrackPicker(title: String, options: List<TrackOption>, player: Player, onDismiss: () -> Unit) {
+private fun TrackPicker(
+    title: String,
+    options: List<TrackOption>,
+    player: Player,
+    onPicked: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
     NuvoraDialog(
         title = title,
         onDismiss = onDismiss,
         actions = options.map { option ->
             DialogAction(
                 label = if (option.selected) "${option.label} (atual)" else option.label,
-                onClick = { option.apply(player) },
+                onClick = {
+                    option.apply(player)
+                    onPicked(option.label)
+                },
                 style = if (option.selected) NuvoraButtonStyle.Primary else NuvoraButtonStyle.Secondary,
             )
         } + DialogAction("Fechar", {}),

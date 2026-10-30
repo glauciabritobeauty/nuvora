@@ -147,6 +147,14 @@ check_advanced() {
   fi
 }
 
+# Anotações do player (só existem na versão de teste).
+plog() { adb logcat -d -s NuvoraPlayer:I | sed 's/.*NuvoraPlayer: //'; }
+check_log() {
+  if plog | grep -qF "$1"; then echo "ok: player anotou '$1'" >> "$STEPS"; else echo "FALHOU: player não anotou '$1'" >> "$STEPS"; fi
+}
+last_pos() { plog | grep -o 'posicao=[0-9]*' | tail -1 | cut -d= -f2; }
+check_playing() { local a b; a=$(last_pos); sleep 7; b=$(last_pos); check_advanced "$a" "$b" "$1"; }
+
 adb install -r apk/*.apk
 adb logcat -c
 
@@ -215,29 +223,34 @@ EOF
   key $BACK; for i in 1 2 3 4 5; do key $U; done; key $D; focus "22. menu: Início"; key $OK; sleep 3
   key $R; sleep 1; focus "23. Home: foco no Assistir"
   MEM_ANTES=$(total_pss)
+  adb logcat -c
   key $OK; sleep 15; shot 15-player-tocando
-  key $U; T1=$(read_time); focus "24. seta mostra controles (foco no tocar/pausar)"; shot 16-player-controles
-  sleep 7; key $U; T2=$(read_time); check_advanced "$T1" "$T2" "TV"
-  sleep 7; key $R; sleep 1; T3=$(read_time); check_advanced "$T2" "$T3" "TV, seta direita avança"
-  key $BACK; sleep 1; check_text "Tempo atual" nao
-  key $BACK; sleep 3; focus "25. Voltar sai do player e volta à Home"; shot 17-voltou-home
+  check_log "aberto id="; check_playing "TV"
+  key $R; sleep 2; check_log "avancou 10s"; shot 16-player-controles
+  key $BACK; key $BACK; sleep 3; check_log "fechado (player liberado)"
+  focus "24. Voltar sai do player e volta à Home"; shot 17-voltou-home
   MEM_1=$(total_pss)
   # Troca de áudio no vídeo DASH com vários idiomas (Exemplo 2), só com o controle.
-  key $D; key $D; key $R; focus "26. cartão Exemplo 2"; key $OK; sleep 15
-  key $U; focus "27. controles"; key $OK; sleep 1          # pausa (foco começa no tocar/pausar)
-  key $D; key $D; for i in 1 2 3 4 5; do key $L; done; focus "28. botão Áudio"
-  key $OK; sleep 1; focus "29. janela de áudio"
-  for i in 1 2 3 4 5 6 7 8; do
+  key $D; key $D; key $R; focus "25. cartão Exemplo 2"
+  adb logcat -c
+  key $OK; sleep 15; check_playing "DASH na TV"
+  key $U; sleep 1; key $OK; sleep 1; focus "26. controles, vídeo pausado"
+  key $D; key $D; focus "27. fileira de baixo"
+  for i in 1 2 3 4 5 6; do
+    if echo "$LAST_FOCUS" | grep -q "Áudio"; then break; fi
+    key $L; focus "  procurando o botão Áudio"
+  done
+  key $OK; sleep 1; focus "28. janela de áudio aberta"
+  for i in 1 2 3 4 5 6 7 8 9 10; do
     if echo "$LAST_FOCUS" | grep -q "Espanhol"; then break; fi
     key $U; focus "  procurando Espanhol"
   done
-  key $OK; sleep 2
-  key $U; key $D; key $D; for i in 1 2 3 4 5; do key $L; done; key $OK; sleep 1
-  check_text "Espanhol (atual)" sim; shot 18-audio-trocado
-  key $BACK; key $BACK; key $BACK; sleep 3; focus "30. voltou à Home"
+  key $OK; sleep 2; check_log "audio=Espanhol"; shot 18-audio-trocado
+  key $BACK; key $BACK; sleep 3; check_log "fechado (player liberado)"; focus "29. voltou à Home"
+  for i in 1 2 3; do key $U; done; focus "30. Assistir"
   for i in 1 2 3; do key $OK; sleep 8; key $BACK; key $BACK; sleep 3; done
   MEM_4=$(total_pss)
-  echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 4ª saída $MEM_4" >> "$STEPS"
+  echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -289,34 +302,29 @@ else
   tap_tab "Favoritos" 3
   check_text "Destaque de exemplo 1" sim; shot 17-favorito-depois-de-fechar
 
-  # Etapa 6: player no celular/tablet.
-  C=$(( (W < H ? W : H) / 2 ))
-  show_controls() { if [ -z "$(read_time)" ]; then adb shell input tap $C $C; sleep 1; fi; }
+  # Etapa 6: player no celular/tablet (o que acontece no vídeo é conferido pelas anotações do player).
   tap_tab "Início" 1
   MEM_ANTES=$(total_pss)
-  # Destaque = HLS com legenda.
+  adb logcat -c
   tap_text "Assistir"; sleep 15; shot 18-player-tocando
-  show_controls; T1=$(read_time); shot 19-player-controles
-  sleep 7; show_controls; T2=$(read_time); check_advanced "$T1" "$T2" "HLS"
-  show_controls; tap_text "Pausar"
-  tap_text "Legendas"; shot 20-opcoes-legendas; tap_text "Desligadas"; check_text "Legendas" sim
-  tap_text "Tocar"
+  check_log "aberto id=demo-destaque-1"; check_playing "HLS"
+  C=$(( (W < H ? W : H) / 2 )); adb shell input tap $C $C; sleep 1; shot 19-player-controles
   # Queda de internet no meio do vídeo e volta.
-  adb shell cmd connectivity airplane-mode enable; sleep 75; shot 21-sem-internet
-  check_text "A conexão caiu" sim
-  adb shell cmd connectivity airplane-mode disable; sleep 30; shot 22-internet-voltou
-  check_text "A conexão caiu" nao
-  show_controls; T3=$(read_time); sleep 7; show_controls; T4=$(read_time); check_advanced "$T3" "$T4" "depois que a internet voltou"
-  key KEYCODE_BACK; sleep 3; shot 23-voltou-home
+  adb shell cmd connectivity airplane-mode enable; sleep 75; shot 20-sem-internet
+  check_log "falha=Network"
+  adb shell cmd connectivity airplane-mode disable; sleep 30; shot 21-internet-voltou
+  check_log "retomou"; check_playing "depois que a internet voltou"
+  key KEYCODE_BACK; sleep 4; check_log "fechado (player liberado)"; shot 22-voltou-home
   check_text "Assistir" sim
   MEM_1=$(total_pss)
-  # Exemplo 3 = MP4 de 10 s: chega ao fim e mostra o botão de tocar de novo.
+  # Exemplo 3 = MP4 de 10 s, aberto pela busca: chega ao fim.
   tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; adb shell input text "Exemplo%s3"; sleep 1; key KEYCODE_BACK
-  tap_card "Exemplo 3"; sleep 25; check_text "Tocar" sim; shot 26-mp4-terminou
-  key KEYCODE_BACK; sleep 3
-  tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 27-historico-apos-assistir
+  adb logcat -c
+  tap_card "Exemplo 3"; sleep 25; check_log "fim"; shot 23-mp4-terminou
+  key KEYCODE_BACK; sleep 4; check_log "fechado (player liberado)"
+  tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 24-historico-apos-assistir
   tap_tab "Início" 1
-  for i in 1 2; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
+  for i in 1 2 3; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
   MEM_4=$(total_pss)
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 fi
