@@ -92,6 +92,10 @@ EOF
   sleep 2
 }
 
+# Esconde avisos de "não está respondendo" de apps do próprio emulador (ex.: Pixel Launcher),
+# que às vezes cobrem a tela e atrapalham o teste. Travamentos do NUVORA continuam no registro de erros.
+adb shell settings put global hide_error_dialogs 1
+
 adb install -r apk/*.apk
 adb logcat -c
 
@@ -209,5 +213,5 @@ fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi
 adb shell dumpsys meminfo "$PKG" > "$OUT/$NAME-memoria.txt"
-adb logcat -d "*:E" | grep -iE "nuvora|AndroidRuntime" > "$OUT/$NAME-erros.txt" || true
+adb logcat -d "*:E" | grep -iE "nuvora|AndroidRuntime|ANR in com.nuvora" > "$OUT/$NAME-erros.txt" || true
 echo "concluído"
