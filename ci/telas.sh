@@ -247,12 +247,15 @@ EOF
     if echo "$LAST_FOCUS" | grep -q "Áudio"; then break; fi
     key $L; focus "  procurando o botão Áudio"
   done
-  key $OK; sleep 1; focus "28. janela de áudio aberta"
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    if echo "$LAST_FOCUS" | grep -q "Espanhol"; then break; fi
-    key $U; focus "  procurando Espanhol"
-  done
-  key $OK; sleep 2; check_log "audio=Espanhol"; shot 18-audio-trocado
+  key $OK; sleep 2; shot 18-janela-audio
+  OPCOES=$(plog | grep "opcoes audio:" | tail -1 | sed 's/opcoes audio: //')
+  echo "  opções de áudio anotadas: $OPCOES" >> "$STEPS"
+  # A janela abre no "Fechar" (último). Sobe até o topo e desce até a posição do Espanhol.
+  POS=$(echo "$OPCOES" | tr '|' '
+' | grep -n "Espanhol" | head -1 | cut -d: -f1)
+  for i in 1 2 3 4 5 6 7 8 9 10; do key $U; done
+  if [ -n "$POS" ]; then for i in $(seq 2 "$POS"); do key $D; done; fi
+  key $OK; sleep 3; check_log "audio=Espanhol"; shot 19-audio-trocado
   adb logcat -c
   for i in 1 2 3; do key $BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done
   check_log "fechado (player liberado)"; focus "29. voltou à Home"

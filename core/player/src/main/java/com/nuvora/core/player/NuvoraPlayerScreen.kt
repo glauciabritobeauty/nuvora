@@ -395,7 +395,10 @@ fun NuvoraPlayerScreen(
                 onSeekForward = { player.seekForward(); interact() },
                 onSeekTo = { player.seekTo(it); position = it; interact() },
                 onInteract = ::interact,
-                onAudio = { picker = "audio" },
+                onAudio = {
+                    diag.log("opcoes audio: " + audioOptions(tracks).joinToString(" | ") { it.label })
+                    picker = "audio"
+                },
                 onSubtitles = { picker = "legendas" },
                 onVolume = { up ->
                     val audio = context.getSystemService(AudioManager::class.java)
