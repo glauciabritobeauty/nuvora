@@ -13,7 +13,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | Etapa | Descrição | Situação |
 |---|---|---|
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
-| 2 | Identidade visual e componentes reutilizáveis | Em andamento (iniciada em 29/10/2026) |
+| 2 | Identidade visual e componentes reutilizáveis | Entregue em 29/10/2026 — **aguardando aprovação** |
 | 3 | Home para celular | Não iniciada |
 | 4 | Home específica para Android TV | Não iniciada |
 | 5 | Navegação e gerenciamento de estado | Não iniciada |
@@ -128,6 +128,38 @@ São 7 módulos — o suficiente para separar responsabilidades sem pesar a comp
 
 ---
 
+## ETAPA 2 — Identidade visual e componentes reutilizáveis
+
+### O que foi feito
+- Projeto Android criado com 2 módulos: `app` (abre o app e escolhe TV ou celular) e `core/designsystem` (visual e componentes). Os demais módulos da arquitetura serão criados nas etapas que os usam.
+- Tema próprio sem a biblioteca Material (mais leve): cores, Poppins embutida (Regular e Medium, licença OFL em `licenses/`), tamanhos de texto e medidas separados para celular e TV.
+- Logo: símbolo "N" (gradiente azul → violeta com ponto de luz ciano) + "NUVORA" espaçado. O desenho anterior parecia um "M"; foi corrigido. Ícone do app e banner da TV (320×180) em vetor.
+- 13 ícones próprios (evita a biblioteca de ícones do Material, de vários MB).
+- Componentes: botão principal/secundário/só ícone, categoria, título de seção com "Ver tudo", cartão vertical (capa), cartão horizontal com barra de "continuar assistindo", banner principal, menu inferior (celular), menu lateral (TV), carregamento (blocos pulsando), erro com "Tentar de novo", sem internet, e "nenhuma fonte conectada".
+- Todo componente funciona com toque (celular) e com controle remoto (TV): na TV, o item em foco cresce 6% e ganha borda ciano.
+- Vitrine de componentes (tela provisória, só para teste desta etapa) no celular e na TV. Não é a Home final e não usa conteúdo real.
+- Repositório privado `glauciabritobeauty/nuvora` + compilação automática no GitHub Actions; a cada envio, o APK é gerado e aberto em emuladores de celular e de TV, com prints, memória e erros.
+
+### Versões fixadas (`gradle/libs.versions.toml`)
+Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026.09.00 · activity-compose 1.13.0 · tv-material 1.1.0 · Coil 3.6.3 · compileSdk 37 (exigido pelas bibliotecas) · targetSdk 36 · minSdk 23 (Android 6, provisório até sabermos os aparelhos).
+
+### Testes (emuladores na nuvem, versão debug, 29/10/2026)
+| Teste | Celular (Pixel 5, Android 11) | TV (1080p, Android TV 11) |
+|---|---|---|
+| Compilação | OK | OK |
+| Abre sem fechar sozinho | OK | OK |
+| Toque/OK no "Assistir" registra a ação | OK | OK |
+| Rolagem e navegação pelas setas | OK (4 rolagens) | OK (baixo, direita, esquerda até o menu) |
+| Memória (PSS total) | 71 MB | 74 MB |
+| Abertura a frio (média de 5) | ~6,4 s | ~5,1 s |
+| Erros do app no registro | nenhum | nenhum |
+
+- A abertura no emulador **não vale como meta**: é versão debug, em emulador sem placa de vídeo. A meta (< 1,5 s celular, < 2 s TV) será medida em versão otimizada nos aparelhos reais (Etapa 8).
+- Problemas achados nos prints e corrigidos na mesma etapa: ícones da barra de status escuros no celular; "luz" do banner com corte reto; botão em foco cortado na TV; os 3 avisos espremidos na TV.
+- Ainda **não testado em aparelho real**.
+
+---
+
 ## Decisões
 | Data | Decisão |
 |---|---|
@@ -155,4 +187,6 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 7. ~~Conta no GitHub~~ — resolvido em 29/10/2026: ferramenta GitHub CLI instalada e login feito na conta `glauciabritobeauty`. O repositório privado só será criado no início da Etapa 2, após aprovação.
 4. Informar a fonte de conteúdo autorizada (tipo, documentação, formato dos dados) — necessária só na Etapa 7, mas define o que a Home poderá mostrar.
 5. Informar modelo e versão do Android da TV, do celular e do tablet (define a versão mínima do Android e os aparelhos de referência).
+8. Testar o APK da Etapa 2 no celular, tablet e TV reais e aprovar (ou pedir ajustes) no visual.
+9. Identificador do app (`com.nuvora.app`) — pode ser trocado agora sem custo; depois de publicado na Play Store fica permanente.
 6. Para testes do player antes da fonte real: autorizar o uso de vídeos públicos de teste (ex.: os exemplos oficiais de HLS/DASH do Google), sempre identificados como "Conteúdo de teste".
