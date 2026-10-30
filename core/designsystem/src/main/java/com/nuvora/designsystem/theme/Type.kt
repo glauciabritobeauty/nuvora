@@ -49,3 +49,10 @@ internal fun tvTypography() = NuvoraTypography(
     caption = style(14, 20),
     overline = style(13, 18).copy(letterSpacing = 0.12.em),
 )
+
+/** "Letra maior" (Ajustes): aumenta todos os textos do app na mesma proporção. */
+internal fun NuvoraTypography.scaled(factor: Float): NuvoraTypography {
+    if (factor == 1f) return this
+    fun TextStyle.up() = copy(fontSize = fontSize * factor, lineHeight = lineHeight * factor)
+    return NuvoraTypography(display.up(), title.up(), section.up(), body.up(), label.up(), caption.up(), overline.up())
+}

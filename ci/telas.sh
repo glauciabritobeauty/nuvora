@@ -349,6 +349,9 @@ else
   for i in 1 2 3; do tap_text "Assistir"; sleep 8; key KEYCODE_BACK; sleep 3; done
   MEM_4=$(total_pss)
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
+  # Letra maior (Ajustes).
+  tap_tab "Ajustes" 5; tap_text "Ligar letra maior"; check_text "Letra maior: ligada" sim; shot 28-ajustes-letra-maior
+  tap_tab "Início" 1; shot 29-home-letra-maior
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

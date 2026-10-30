@@ -11,13 +11,19 @@ private val LocalTypography = staticCompositionLocalOf { mobileTypography() }
 private val LocalDimens = staticCompositionLocalOf { mobileDimens }
 private val LocalIsTv = staticCompositionLocalOf { false }
 
+/** Quanto a "Letra maior" aumenta os textos. */
+private const val LARGE_TEXT_FACTOR = 1.2f
+
 /**
  * Tema único do NUVORA. [isTv] troca tipografia e medidas; cores e componentes são os mesmos.
+ * [largeText] aumenta todos os textos (opção "Letra maior" em Ajustes).
  * Usa só compose-foundation (sem Material) para manter o app leve e com cara própria.
  */
 @Composable
-fun NuvoraTheme(isTv: Boolean, content: @Composable () -> Unit) {
-    val typography = remember(isTv) { if (isTv) tvTypography() else mobileTypography() }
+fun NuvoraTheme(isTv: Boolean, largeText: Boolean = false, content: @Composable () -> Unit) {
+    val typography = remember(isTv, largeText) {
+        (if (isTv) tvTypography() else mobileTypography()).scaled(if (largeText) LARGE_TEXT_FACTOR else 1f)
+    }
     CompositionLocalProvider(
         LocalColors provides NuvoraColors(),
         LocalTypography provides typography,

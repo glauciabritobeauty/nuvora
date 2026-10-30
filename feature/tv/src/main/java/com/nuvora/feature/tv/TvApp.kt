@@ -62,6 +62,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val subtitleMode by viewModel.subtitleMode.collectAsStateWithLifecycle()
+    val largeText by viewModel.largeText.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(TvTab.Home) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuFocused by remember { mutableStateOf(false) }
@@ -172,6 +173,8 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     onClearHistory = { confirmClear = true },
                     subtitleMode = subtitleMode,
                     onChangeSubtitles = { choosingSubtitles = true },
+                    largeText = largeText,
+                    onToggleLargeText = { viewModel.setLargeText(!largeText) },
                 )
             }
         }

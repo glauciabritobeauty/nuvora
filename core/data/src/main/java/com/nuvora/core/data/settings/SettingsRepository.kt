@@ -21,7 +21,16 @@ class SettingsRepository(context: Context) {
         _subtitleMode.value = mode
     }
 
+    private val _largeText = MutableStateFlow(prefs.getBoolean(KEY_LARGE_TEXT, false))
+    val largeText: StateFlow<Boolean> = _largeText.asStateFlow()
+
+    fun setLargeText(on: Boolean) {
+        prefs.edit().putBoolean(KEY_LARGE_TEXT, on).apply()
+        _largeText.value = on
+    }
+
     private companion object {
         const val KEY_SUBTITLES = "legendas"
+        const val KEY_LARGE_TEXT = "letra_maior"
     }
 }

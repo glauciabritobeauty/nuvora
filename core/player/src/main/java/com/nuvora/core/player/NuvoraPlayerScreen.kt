@@ -515,7 +515,7 @@ private fun Controls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            PlayerButton(NuvoraIcons.ChevronLeft, "Sair do vídeo", onClose)
+            PlayerButton(NuvoraIcons.ChevronLeft, "Sair do vídeo", onClose, text = "Sair")
             Column {
                 NuvoraText(request.title, NuvoraTheme.typography.section, maxLines = 1)
                 request.subtitle?.let { NuvoraText(it, NuvoraTheme.typography.caption, color = colors.textSecondary, maxLines = 1) }
@@ -527,7 +527,7 @@ private fun Controls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            PlayerButton(NuvoraIcons.Rewind, "Voltar 10 segundos", onSeekBack)
+            PlayerButton(NuvoraIcons.Rewind, "Voltar 10 segundos", onSeekBack, text = "10 s")
             NuvoraButton(
                 text = null,
                 icon = if (isPlaying) NuvoraIcons.Pause else NuvoraIcons.Play,
@@ -535,7 +535,7 @@ private fun Controls(
                 onClick = onTogglePlay,
                 modifier = Modifier.focusRequester(playFocus).graphicsLayer { scaleX = 1.3f; scaleY = 1.3f },
             )
-            PlayerButton(NuvoraIcons.Forward, "Avançar 10 segundos", onSeekForward)
+            PlayerButton(NuvoraIcons.Forward, "Avançar 10 segundos", onSeekForward, text = "10 s")
         }
 
         Column(
@@ -552,20 +552,23 @@ private fun Controls(
                 )
                 Spacer(Modifier.weight(1f))
                 if (hasAudioChoice) {
-                    PlayerButton(NuvoraIcons.Audio, "Áudio", onAudio, showLabel = true)
+                    PlayerButton(NuvoraIcons.Audio, "Áudio", onAudio, text = "Áudio")
                 }
                 // Sempre visível: quem precisa de legenda sabe na hora se o vídeo tem ou não.
-                PlayerButton(NuvoraIcons.Subtitles, "Legendas", onSubtitles, showLabel = true)
-                PlayerButton(NuvoraIcons.VolumeDown, "Diminuir volume", { onVolume(false) })
-                PlayerButton(NuvoraIcons.VolumeUp, "Aumentar volume", { onVolume(true) })
+                PlayerButton(NuvoraIcons.Subtitles, "Legendas", onSubtitles, text = "Legendas")
+                PlayerButton(NuvoraIcons.VolumeDown, "Diminuir volume", { onVolume(false) }, text = "Volume")
+                PlayerButton(NuvoraIcons.VolumeUp, "Aumentar volume", { onVolume(true) }, text = "Volume")
             }
         }
     }
 }
 
-/** Botão do player com fundo escuro translúcido: fica legível sobre qualquer imagem do vídeo. */
+/**
+ * Botão do player com fundo escuro translúcido: fica legível sobre qualquer imagem do vídeo.
+ * Ícone com palavra ([text]) para ninguém precisar adivinhar; [label] é a frase completa para o leitor de tela.
+ */
 @Composable
-private fun PlayerButton(icon: ImageVector, label: String, onClick: () -> Unit, showLabel: Boolean = false) {
+private fun PlayerButton(icon: ImageVector, label: String, onClick: () -> Unit, text: String? = null) {
     val colors = NuvoraTheme.colors
     NuvoraClickable(
         onClick = onClick,
@@ -576,12 +579,12 @@ private fun PlayerButton(icon: ImageVector, label: String, onClick: () -> Unit, 
         modifier = Modifier.semantics { contentDescription = label },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = if (showLabel) 16.dp else 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = if (text != null) 16.dp else 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             NuvoraIcon(icon, tint = Color.White, size = 20.dp)
-            if (showLabel) NuvoraText(label, NuvoraTheme.typography.label, color = Color.White, maxLines = 1)
+            if (text != null) NuvoraText(text, NuvoraTheme.typography.label, color = Color.White, maxLines = 1)
         }
     }
 }

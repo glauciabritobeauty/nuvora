@@ -236,10 +236,21 @@ fun TvSettingsScreen(
     onClearHistory: () -> Unit,
     subtitleMode: SubtitleMode,
     onChangeSubtitles: () -> Unit,
+    largeText: Boolean,
+    onToggleLargeText: () -> Unit,
 ) {
     TvScreen("Ajustes") {
         Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             InfoRow("Fontes de conteúdo", "O cadastro de listas e servidores autorizados está sendo construído.")
+            InfoRow(
+                if (largeText) "Letra maior: ligada" else "Letra maior: desligada",
+                "Aumenta todos os textos do aplicativo.",
+            )
+            NuvoraButton(
+                text = if (largeText) "Voltar ao tamanho normal" else "Ligar letra maior",
+                style = NuvoraButtonStyle.Secondary,
+                onClick = onToggleLargeText,
+            )
             InfoRow("Legendas: ${subtitleMode.label}", subtitleMode.description)
             NuvoraButton(text = "Mudar legendas", icon = NuvoraIcons.Subtitles, style = NuvoraButtonStyle.Secondary, onClick = onChangeSubtitles)
             InfoRow(

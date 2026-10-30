@@ -291,6 +291,11 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 - Não funciona: Roku, Samsung (Tizen), LG (webOS), Apple TV. App para Roku seria um projeto separado — ideia futura, não está no escopo.
 - Computador (31/10/2026, pergunta da Glaucia): fora do escopo atual. Chromebook roda o APK. Windows/Mac: ideia futura — versão de computador reaproveitando parte do código (Compose Multiplatform) ou versão web; seria um projeto à parte. **Preferência da Glaucia: versão para navegador (abrir no Chrome, sem instalar).** Avaliar depois do app Android pronto: listas M3U/servidores costumam usar http e bloqueios de CORS, o que no navegador pode exigir um servidor intermediário — estudar antes de prometer.
 
+## Princípio de produto: simples para todos (31/10/2026)
+- Pedido da Glaucia: "seja bem simples, até os senhores que não têm muita facilidade com tecnologia consigam mexer".
+- Regras a seguir daqui em diante: textos curtos e claros em português; botões com palavra junto do ícone sempre que couber; poucas escolhas por tela; nada que apague sem confirmar; mensagens que dizem o que fazer; letra grande e foco bem visível na TV.
+- Revisar telas existentes com esse olhar (ideias, **aguardando autorização**): rótulos nos botões do player que hoje são só ícone (voltar/avançar 10 s, volume); opção "Letra maior" em Ajustes; teste com uma pessoa mais velha antes da Etapa 10.
+
 ## Idioma e legendas (31/10/2026)
 - Glaucia confirmou: padrão **português do Brasil**. Ajuste aprovado: pedir primeiro áudio/legenda **pt-BR**, depois qualquer português.
 - Acessibilidade (Glaucia: "tem bastante gente com deficiência auditiva"): proposta de opção em Ajustes — Legendas **Automático** (só quando o áudio não é português) / **Sempre ligadas** (prefere legendas para surdos, quando o vídeo tiver) / **Desligadas** — e o app lembra a escolha feita no player. **Aguardando a Glaucia definir o padrão.**

@@ -51,6 +51,11 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setSubtitleMode(mode: SubtitleMode) = settings.setSubtitleMode(mode)
 
+    /** "Letra maior" (Ajustes). */
+    val largeText: StateFlow<Boolean> = settings.largeText
+
+    fun setLargeText(on: Boolean) = settings.setLargeText(on)
+
     val state: StateFlow<AppUiState> = combine(
         library.loaded,
         demoOn,
