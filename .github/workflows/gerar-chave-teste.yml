@@ -1,0 +1,30 @@
+name: Gerar chave de teste (uma vez só)
+
+# Cria a chave que assina as versões de TESTE, para o celular aceitar atualizar por cima.
+# Roda manualmente uma única vez. A chave sai como arquivo temporário (apagado em 1 dia)
+# e é guardada em seguida como segredo do repositório (NUVORA_TESTE_CHAVE).
+# Não é a chave da versão final da Play Store.
+on:
+  workflow_dispatch:
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Gerar chave
+        env:
+          SENHA: ${{ secrets.NUVORA_TESTE_SENHA }}
+        run: |
+          keytool -genkeypair -v -keystore teste.jks -storetype PKCS12 \
+            -alias nuvora-teste -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$SENHA" -keypass "$SENHA" \
+            -dname "CN=NUVORA Teste, O=NUVORA, C=BR" > /dev/null
+      - uses: actions/upload-artifact@v7
+        with:
+          name: chave-teste
+          path: teste.jks
+          retention-days: 1
