@@ -311,6 +311,8 @@ fun NuvoraPlayerScreen(
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown || controlsVisible) return@onKeyEvent false
                 when (event.key) {
+                    // Voltar segue para o BackHandler (sair do vídeo); não pode virar "mostrar controles".
+                    Key.Back, Key.Escape -> false
                     Key.DirectionLeft -> { player.seekBack(); diag.log("voltou 10s"); interact(); true }
                     Key.DirectionRight -> { player.seekForward(); diag.log("avancou 10s"); interact(); true }
                     Key.MediaPlayPause -> { togglePlay(); true }
