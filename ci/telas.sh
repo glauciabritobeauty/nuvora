@@ -20,11 +20,17 @@ tap_text() {
 import re, sys
 alvo = sys.argv[1]
 xml = open('ui.xml', encoding='utf-8').read()
+achados = []
 for n in re.findall(r'<node [^>]*>', xml):
     if f'text="{alvo}"' in n or f'content-desc="{alvo}"' in n:
         a = list(map(int, re.findall(r'\d+', re.search(r'bounds="([^"]*)"', n).group(1))))
-        print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
-        break
+        # Ignora elementos rolados para fora da tela (altura zero ou colados no topo).
+        if a[3] - a[1] > 10 and a[1] > 60:
+            achados.append(a)
+if achados:
+    # Com dois iguais (lupa do topo e aba "Buscar"), usa o mais de baixo: o menu.
+    a = max(achados, key=lambda b: b[1])
+    print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
 EOF
 )
   if [ -n "$pos" ]; then
