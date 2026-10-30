@@ -10,8 +10,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Só fontes de conteúdo autorizadas. Nada de APIs, servidores ou credenciais inventados; nada que contorne DRM.
 
 ## Onde paramos (30/10/2026, noite)
-- Etapa 4 (Home da TV) implementada; todos os testes na nuvem passaram (celular, tablet, TV só com controle). Faltava conferir a última rodada (título dos cartões para o leitor de tela) e entregar a Etapa 4 no formato combinado.
-- Ao retomar: ver o resultado da última compilação em github.com/glauciabritobeauty/nuvora/actions, conferir prints, registrar a Etapa 4 abaixo e pedir aprovação.
+- Etapa 4 (Home da TV) **entregue**: a última rodada de testes passou (detalhes na seção da Etapa 4). Falta a Glaucia aprovar.
+- Ao retomar: apresentar a entrega da Etapa 4 no formato combinado e pedir aprovação. APK: `apk/nuvora-etapa4.apk`.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -19,7 +19,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 | 1 | Análise do ambiente, arquitetura e estrutura | **Aprovada** em 29/10/2026 ("Pode avançar") |
 | 2 | Identidade visual e componentes reutilizáveis | **Aprovada** em 29/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
 | 3 | Home para celular | **Aprovada** em 30/10/2026 ("Pode avançar"). Teste nos aparelhos reais ainda não relatado |
-| 4 | Home específica para Android TV | Em andamento (iniciada em 30/10/2026) |
+| 4 | Home específica para Android TV | Entregue em 30/10/2026 — **aguardando aprovação** |
 | 5 | Navegação e gerenciamento de estado | Não iniciada |
 | 6 | Player (Media3) | Não iniciada |
 | 7 | Integração com fontes autorizadas | Não iniciada |
@@ -190,6 +190,25 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 
 - **Tamanho do APK final otimizado: 1,35 MB** (meta < 15 MB). O APK de teste tem 13 MB por não ser otimizado.
 - Problema encontrado e **ainda aberto**: no emulador de celular, a "leitura da tela" usada pelos leitores de acessibilidade (TalkBack) informa o menu inferior com tamanho zero; no tablet está correto. No teste automático, as abas do celular foram tocadas pela posição. Causa ainda não identificada — investigar com o TalkBack ligado (Etapa 9 ou antes).
+- Ainda **não testado em aparelho real**.
+
+---
+
+## ETAPA 4 — Home específica para Android TV
+
+### O que foi feito
+- Novo módulo `feature/tv`; a vitrine de teste da TV (Etapa 2) foi **removida** e substituída pela Home real.
+- Menu lateral (Buscar, Início, Favoritos, Histórico, Categorias e Ajustes embaixo), banner com Assistir e Minha lista, fileiras Continuar assistindo, Categorias (filtram de verdade), Adicionados recentemente, Favoritos e Histórico.
+- Controle remoto: foco começa na primeira ação da tela; ao voltar para uma fileira, o foco volta ao último cartão visitado; Voltar leva ao menu → ao Início → sai do app.
+- Busca na TV: o teclado só abre com OK no campo (passar com as setas não abre, e não digita letra sozinha).
+- Telas de TV para Buscar, Favoritos, Histórico, Categorias e Ajustes, com os mesmos estados reais do celular e demonstração só na versão de teste.
+- **Mudanças em partes já aprovadas (avisadas antes):** modelos e demonstração da Home movidos para o novo módulo `core/data` (celular e TV usam os mesmos; nada muda na tela do celular); componentes ganharam opção de foco inicial e de devolver o foco ao menu; cartões passaram a informar o título ao leitor de tela; título do banner na TV ficou mais largo.
+
+### Testes (emuladores na nuvem, 30/10/2026)
+- TV, só com setas/OK/Voltar (14 passos registrados com o item em foco): abertura → "Abrir ajustes"; seta baixo → "Ver demonstração"; OK → "Assistir"; Minha lista → "Na minha lista"; fileira Continuar → "Exemplo 4, Faltam 44 min"; categoria Séries selecionada; voltar à fileira de categorias devolve o foco em "Séries"; Voltar → menu "Início"; menu Favoritos; Voltar no menu → Início com foco em "Assistir"; busca digitada "Exemplo 1" sem letra extra. **Todos OK.**
+- Celular e tablet continuam passando no roteiro da Etapa 3 (no celular, abas tocadas pela posição — pendência de acessibilidade ainda aberta).
+- App aberto sem fechar e sem erros nos 3. Memória: celular 87 MB, tablet 91 MB, TV 76 MB (versão de teste).
+- Problemas achados e corrigidos na etapa: teclado da TV abria sozinho e digitava "q"; título do banner quebrava cedo; cartões sem nome para o leitor de tela. Uma rodada do tablet foi atrapalhada por um aviso do próprio emulador ("Pixel Launcher isn't responding"); repetida e passou.
 - Ainda **não testado em aparelho real**.
 
 ---
