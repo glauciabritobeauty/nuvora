@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -176,6 +178,7 @@ fun AddSourceScreen(
     var agreed by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf<SaveStatus>(SaveStatus.Idle) }
     var formError by remember { mutableStateOf<String?>(null) }
+    val firstField = remember { FocusRequester() }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -222,7 +225,15 @@ fun AddSourceScreen(
                 )
                 return@Column
             }
-            NuvoraTextField(value = name, onValueChange = { name = it }, label = "Nome da lista", placeholder = "Minha lista")
+            NuvoraTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = "Nome da lista",
+                placeholder = "Minha lista",
+                tvFocusRequester = firstField,
+            )
+            // Na TV o foco do controle já começa no primeiro campo.
+            LaunchedEffect(kind) { if (isTv) runCatching { firstField.requestFocus() } }
             if (kind == SourceKind.Link) {
                 NuvoraTextField(
                     value = link,

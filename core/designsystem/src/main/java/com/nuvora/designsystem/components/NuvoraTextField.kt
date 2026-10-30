@@ -44,6 +44,8 @@ fun NuvoraTextField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     secret: Boolean = false,
+    /** Na TV, permite colocar o foco do controle neste campo (ex.: primeiro campo de um formulário). */
+    tvFocusRequester: FocusRequester? = null,
 ) {
     val colors = NuvoraTheme.colors
     val isTv = NuvoraTheme.isTv
@@ -91,7 +93,9 @@ fun NuvoraTextField(
             NuvoraClickable(
                 onClick = { editing = true },
                 shape = shape,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (tvFocusRequester != null) Modifier.focusRequester(tvFocusRequester) else Modifier),
                 containerColor = if (editing) colors.surfaceRaised else colors.surface,
                 focusedContainerColor = colors.surfaceRaised,
                 border = BorderStroke(if (editing) 3.dp else 1.dp, if (editing) colors.accent else colors.outline),
