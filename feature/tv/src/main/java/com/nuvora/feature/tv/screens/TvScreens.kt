@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,11 +88,12 @@ fun TvSearchScreen(
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
     TvScreen("Buscar") {
-        // No controle: OK no campo abre o teclado da TV.
+        // Na TV o teclado não abre só de passar pelo campo: abre quando a pessoa aperta OK nele.
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
             singleLine = true,
+            keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
             textStyle = NuvoraTheme.typography.body.copy(color = colors.textPrimary),
             cursorBrush = SolidColor(colors.accent),
             modifier = Modifier

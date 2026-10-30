@@ -95,7 +95,7 @@ fun HeroBanner(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .fillMaxWidth(if (isTv) 0.55f else 1f)
+                .fillMaxWidth(if (isTv) 0.7f else 1f)
                 // Na TV, folga para o botão em foco crescer sem ser cortado.
                 .padding(if (isTv) 12.dp else 16.dp),
         ) {
