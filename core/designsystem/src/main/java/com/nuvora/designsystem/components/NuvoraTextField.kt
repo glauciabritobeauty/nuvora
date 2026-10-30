@@ -17,11 +17,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,6 +61,7 @@ fun NuvoraTextField(
     var focused by remember { mutableStateOf(false) }
     val fieldFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(editing) {
         if (isTv && editing) {
             runCatching { fieldFocus.requestFocus() }
@@ -78,7 +86,30 @@ fun NuvoraTextField(
                         focused = it.isFocused
                         if (isTv && !it.isFocused && editing) editing = false
                     }
-                    .then(if (isTv) Modifier.focusProperties { canFocus = editing } else Modifier),
+                    .then(
+                        if (isTv) {
+                            Modifier
+                                .focusProperties { canFocus = editing }
+                                // TV: com o teclado fechado, ↑ ↓ saem do campo (nunca deixa a pessoa presa) e OK reabre o teclado.
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                    when (event.key) {
+                                        Key.DirectionDown, Key.DirectionUp -> {
+                                            editing = false
+                                            focusManager.moveFocus(if (event.key == Key.DirectionDown) FocusDirection.Down else FocusDirection.Up)
+                                            true
+                                        }
+                                        Key.DirectionCenter, Key.Enter -> {
+                                            keyboard?.show()
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                }
+                        } else {
+                            Modifier
+                        },
+                    ),
                 decorationBox = { text ->
                     Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         if (value.isEmpty()) {

@@ -33,11 +33,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
@@ -108,6 +115,7 @@ fun TvSearchScreen(
     var editing by remember { mutableStateOf(false) }
     val fieldFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(editing) {
         if (editing) {
             runCatching { fieldFocus.requestFocus() }
@@ -134,7 +142,23 @@ fun TvSearchScreen(
                     .fillMaxWidth()
                     .focusRequester(fieldFocus)
                     .focusProperties { canFocus = editing }
-                    .onFocusChanged { if (!it.isFocused && editing) editing = false },
+                    .onFocusChanged { if (!it.isFocused && editing) editing = false }
+                    // Com o teclado fechado, ↓ sai do campo para os resultados; OK reabre o teclado.
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (event.key) {
+                            Key.DirectionDown, Key.DirectionUp -> {
+                                editing = false
+                                focusManager.moveFocus(if (event.key == Key.DirectionDown) FocusDirection.Down else FocusDirection.Up)
+                                true
+                            }
+                            Key.DirectionCenter, Key.Enter -> {
+                                keyboard?.show()
+                                true
+                            }
+                            else -> false
+                        }
+                    },
                 decorationBox = { field ->
                     Row(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
