@@ -11,7 +11,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 
 ## Onde paramos (30/10/2026, noite)
 - Etapa 4 (Home da TV) **entregue**: a última rodada de testes passou (detalhes na seção da Etapa 4). Falta a Glaucia aprovar.
-- Ao retomar: apresentar a entrega da Etapa 4 no formato combinado e pedir aprovação. APK: `apk/nuvora-etapa4.apk`.
+- Ao retomar: apresentar a entrega da Etapa 4 no formato combinado e pedir aprovação. APK: `apk/nuvora-etapa4-assinatura-fixa.apk`.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -229,7 +229,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | Data | Teste | Resultado |
 |---|---|---|
 | 29/10/2026 | Verificação do ambiente (Java, SDK, Studio, adb, RAM, CPU, disco) | Feito — ver 1.1 |
-| 31/10/2026 | **Celular real da Glaucia** (APK da Etapa 4) | "Ficou bom". Problema: o APK novo **não instalou por cima** do antigo; foi preciso desinstalar e instalar de novo. Causa: cada compilação na nuvem assina o app com uma chave de teste diferente. Correção proposta: chave de teste fixa — aguardando autorização |
+| 31/10/2026 | **Celular real da Glaucia** (APK da Etapa 4) | "Ficou bom". Problema: o APK novo **não instalou por cima** do antigo; foi preciso desinstalar e instalar de novo. Causa: cada compilação na nuvem assina o app com uma chave de teste diferente. Correção **feita** (autorizada em 31/10/2026): chave de teste fixa guardada como segredo do GitHub (`NUVORA_TESTE_CHAVE`/`NUVORA_TESTE_SENHA`). Duas compilações seguidas saíram com a mesma assinatura (SHA-256 `8b878a1b…500d6f`). Desinstalar uma última vez e instalar `apk/nuvora-etapa4-assinatura-fixa.apk`; depois disso, atualiza por cima |
 | 29/10/2026 | Login no GitHub (`gh auth status`) | OK — conta `glauciabritobeauty`, permissões de repositório e de automação (workflow) |
 
 Nenhum teste de aplicativo foi executado ainda (não há código).
@@ -242,12 +242,15 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 - **Testar na Etapa 9 (autorizado pela Glaucia):** Amazon Fire TV e Fire Stick (Fire OS é baseado em Android; o APK deve rodar, mas ainda não foi testado).
 - 31/10/2026 — **Correção:** a TV da Glaucia é **Roku** (não roda o app). Hoje não há aparelho de TV Android real para teste; a TV só foi testada em emulador. Plano da Glaucia: pedir para um familiar com TV Android testar depois. Até lá, TV testada só em emulador. (Alternativa, se precisar: aparelho de teste barato — Fire Stick ou Chromecast com Google TV.) Para o familiar instalar, preparar na Etapa 9 um link do APK e um passo a passo simples.
 - Não funciona: Roku, Samsung (Tizen), LG (webOS), Apple TV. App para Roku seria um projeto separado — ideia futura, não está no escopo.
+- Computador (31/10/2026, pergunta da Glaucia): fora do escopo atual. Chromebook roda o APK. Windows/Mac: ideia futura — versão de computador reaproveitando parte do código (Compose Multiplatform) ou versão web; seria um projeto à parte. **Preferência da Glaucia: versão para navegador (abrir no Chrome, sem instalar).** Avaliar depois do app Android pronto: listas M3U/servidores costumam usar http e bloqueios de CORS, o que no navegador pode exigir um servidor intermediário — estudar antes de prometer.
 
 ## Requisitos levantados para a Etapa 7 (ainda não implementados)
 - 29/10/2026 — A pessoa pode adicionar **as próprias listas** (o app não vem com nenhuma lista nem conteúdo). Formatos **confirmados pela Glaucia**: link M3U/M3U8, arquivo M3U salvo no aparelho, e login de servidor (endereço + usuário + senha).
 - Login de servidor: se a pessoa colar um link de lista que já traz usuário e senha dentro, o app preenche servidor/usuário/senha sozinho. Opção futura (só se a Glaucia tiver um fornecedor autorizado próprio, com documentação): servidor já configurado no app, e a pessoa digita só usuário e senha — **decisão pendente**.
 - 29/10/2026 — O login da lista **fica salvo** até a pessoa sair: dados criptografados no aparelho (Android Keystore), nunca em texto puro nem em logs; botão "Sair" apaga tudo.
 - Aviso no cadastro da lista: a pessoa declara ter direito de acesso ao conteúdo.
+- Fluxo previsto (explicado à Glaucia em 31/10/2026): Ajustes → Fontes de conteúdo → Adicionar → escolher tipo (link, arquivo, servidor) → preencher → aviso de direitos → "Testar conexão" → salvar → Home preenche. Várias listas, editar e remover.
+- **QR Code na TV — autorizado pela Glaucia em 31/10/2026** ("se não for ficar pesado"), para usuário e senha (e o link, que vem junto): a TV mostra um QR Code que abre uma página no celular (mesmo Wi-Fi, sem servidor externo) para digitar os dados. Regras para não pesar e ser seguro: o mini-servidor só existe com essa tela aberta e fecha ao receber os dados ou em 5 min; código de uso único no QR; nada fica salvo fora do cofre do aparelho. Custo estimado de tamanho: ~100–200 KB no APK final (medir e informar na Etapa 7; se passar disso, avisar antes). Risco a explicar: no Wi-Fi local os dados trafegam sem criptografia durante esses segundos.
 
 ## Pendências (dependem da Glaucia)
 1. Aprovar (ou ajustar) a arquitetura e as tecnologias da Etapa 1.
