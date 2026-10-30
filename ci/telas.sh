@@ -93,7 +93,7 @@ EOF
   key $OK; sleep 2; focus "3. OK em Ver demonstração"; shot 02-demonstracao
   key $R; key $OK; focus "4. direita + OK (Minha lista)"; shot 03-minha-lista
   key $D; key $R; key $R; focus "5. baixo + direita x2 (Continuar assistindo)"; shot 04-continuar
-  key $D; for i in 1 2 3 4 5; do key $L; done; key $R; key $R; key $OK; focus "6. categorias: OK em Séries"; shot 05-categoria-series
+  key $D; for i in 1 2 3 4; do key $L; done; key $R; key $R; key $OK; focus "6. categorias: OK em Séries"; shot 05-categoria-series
   key $D; focus "7. baixo (recentes filtrados)"; shot 06-recentes
   key $U; focus "8. cima: deve voltar em Séries"
   key $D; key $D; focus "9. baixo x2 (Favoritos)"; shot 07-favoritos

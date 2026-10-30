@@ -1,5 +1,6 @@
 package com.nuvora.feature.tv.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,15 +31,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.designsystem.components.CategoryChip
 import com.nuvora.designsystem.components.EmptyState
 import com.nuvora.designsystem.components.NuvoraButton
 import com.nuvora.designsystem.components.NuvoraButtonStyle
+import com.nuvora.designsystem.components.NuvoraClickable
 import com.nuvora.designsystem.components.NuvoraIcon
 import com.nuvora.designsystem.components.NuvoraText
 import com.nuvora.designsystem.components.PosterCard
@@ -85,40 +92,56 @@ fun TvSearchScreen(
     onOpenSettings: () -> Unit,
 ) {
     val colors = NuvoraTheme.colors
-    var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(50)
+    // O campo só recebe foco depois do OK. Assim o teclado abre quando o botão já foi solto
+    // e não digita sozinho a primeira letra (o "q"), e passar pelo campo com as setas não abre o teclado.
+    var editing by remember { mutableStateOf(false) }
+    val fieldFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(editing) {
+        if (editing) {
+            runCatching { fieldFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
     TvScreen("Buscar") {
-        // Na TV o teclado não abre só de passar pelo campo: abre quando a pessoa aperta OK nele.
-        BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
-            textStyle = NuvoraTheme.typography.body.copy(color = colors.textPrimary),
-            cursorBrush = SolidColor(colors.accent),
-            modifier = Modifier
-                .widthIn(max = 640.dp)
-                .fillMaxWidth()
-                .onFocusChanged { focused = it.isFocused },
-            decorationBox = { field ->
-                Row(
-                    modifier = Modifier
-                        .background(if (focused) colors.surfaceRaised else colors.surface, shape)
-                        .border(if (focused) 3.dp else 1.dp, if (focused) colors.accent else colors.outline, shape)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    NuvoraIcon(NuvoraIcons.Search, tint = colors.textSecondary)
-                    Spacer(Modifier.width(12.dp))
-                    Box(Modifier.weight(1f)) {
-                        if (query.isEmpty()) {
-                            NuvoraText("Filmes, séries e canais", NuvoraTheme.typography.body, color = colors.textSecondary, maxLines = 1)
+        NuvoraClickable(
+            onClick = { editing = true },
+            shape = shape,
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+            containerColor = if (editing) colors.surfaceRaised else colors.surface,
+            focusedContainerColor = colors.surfaceRaised,
+            border = BorderStroke(if (editing) 3.dp else 1.dp, if (editing) colors.accent else colors.outline),
+        ) {
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(showKeyboardOnFocus = false),
+                textStyle = NuvoraTheme.typography.body.copy(color = colors.textPrimary),
+                cursorBrush = SolidColor(colors.accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(fieldFocus)
+                    .focusProperties { canFocus = editing }
+                    .onFocusChanged { if (!it.isFocused && editing) editing = false },
+                decorationBox = { field ->
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        NuvoraIcon(NuvoraIcons.Search, tint = colors.textSecondary)
+                        Spacer(Modifier.width(12.dp))
+                        Box(Modifier.weight(1f)) {
+                            if (query.isEmpty()) {
+                                NuvoraText("Filmes, séries e canais", NuvoraTheme.typography.body, color = colors.textSecondary, maxLines = 1)
+                            }
+                            field()
                         }
-                        field()
                     }
-                }
-            },
-        )
+                },
+            )
+        }
         Spacer(Modifier.padding(top = 16.dp))
         when {
             !hasSource -> EmptyState(
