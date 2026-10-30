@@ -126,6 +126,7 @@ else:
 EOF
 )
     echo "$1 -> foco em: $f" >> "$STEPS"
+    LAST_FOCUS="$f"
   }
   U=KEYCODE_DPAD_UP; D=KEYCODE_DPAD_DOWN; L=KEYCODE_DPAD_LEFT; R=KEYCODE_DPAD_RIGHT; OK=KEYCODE_DPAD_CENTER; BACK=KEYCODE_BACK
 
@@ -147,10 +148,10 @@ EOF
   # Etapa 5: histórico salvo, remover um item e limpar tudo, só com o controle.
   key $BACK; key $BACK; focus "15. Voltar até o menu"
   key $D; key $D; key $D; key $OK; focus "16. menu Histórico"; shot 12-historico
-  key $R; key $D; focus "17. primeiro cartão do histórico"
+  key $R; key $D; focus "17. cartão do histórico em foco"; ALVO="$LAST_FOCUS"
   adb shell input keyevent --longpress KEYCODE_DPAD_CENTER; sleep 2; focus "18. segurou OK: janela abre no Cancelar"; shot 13-opcoes
   key $U; focus "19. cima: Remover do histórico"; key $OK; sleep 2
-  check_text "Exemplo 1" nao
+  check_text "$ALVO" nao
   key $U; key $U; focus "20. botão Limpar histórico"; key $OK; sleep 1; focus "21. confirmação abre no Cancelar"
   key $U; key $OK; sleep 2
   check_text "Nada assistido ainda" sim; shot 14-historico-limpo
