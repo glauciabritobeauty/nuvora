@@ -10,8 +10,8 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Só fontes de conteúdo autorizadas. Nada de APIs, servidores ou credenciais inventados; nada que contorne DRM.
 
 ## Onde paramos (30/10/2026, noite)
-- Etapa 6 **entregue** (detalhes na seção da Etapa 6). Falta a Glaucia aprovar. Ainda sem retorno se o APK atualizou por cima no celular.
-- APK: `apk/nuvora-etapa6.apk`.
+- Etapa 7 — **Parte 1 entregue** (listas M3U por link e arquivo). Falta a Glaucia aprovar a Parte 1 para começar a Parte 2 (Provedor/Usuário/Senha + QR Code na TV).
+- APK: `apk/nuvora-etapa7-parte1.apk`.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -262,6 +262,31 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
   - Simplicidade: botões do player com palavra ("Sair", "10 s", "Áudio", "Legendas", "Volume"); opção "Letra maior" em Ajustes (+20% em todos os textos, lembrada). Teste: ligar e ver a Home com letra maior. **OK**.
   - TV: com os controles na tela, uma seta/OK sempre leva o foco aos controles (antes, às vezes o OK não fazia nada). **OK** (pausar pelo controle confirmado).
 - Pendências: na TV, ao sair do player às vezes nenhum item fica em foco (a primeira seta leva ao menu) — corrigir na Etapa 8/9; acessibilidade da faixa inferior (já registrada); teste em aparelho real.
+
+---
+
+## ETAPA 7 — Parte 1: listas M3U por link e por arquivo
+
+### O que foi feito
+- Novo módulo `source/api` com o leitor de listas M3U/M3U8: lê linha por linha (nunca a lista inteira na memória); entende logo, categoria, nome, `#EXTGRP`, BOM e quebras de linha do Windows; ignora o que não é link. 7 testes automáticos (inclui lista de 20.000 itens).
+- **Cofre** (`core/data/security/CryptoBox`): chave mestra no Android Keystore protegendo uma chave de dados AES-GCM; todos os links das listas (que podem ter usuário e senha dentro) ficam cifrados no aparelho. Nada em texto puro nem em logs.
+- **Banco de listas** (`fontes.db`, SQLite do Android): listas e itens; a importação grava direto no banco em uma transação (se der errado, nada muda; ao atualizar, a versão antiga continua valendo).
+- Erros em português simples: sem internet, link não encontrado, acesso recusado (assinatura), não é uma lista, lista vazia, provedor com problema, arquivo ilegível.
+- Novo módulo `feature/sources`: **Ajustes → Fontes de conteúdo** (listas com quantidade de itens e data, Atualizar, Remover com confirmação, Adicionar lista) e tela **Adicionar lista** (Link da lista ou Arquivo do aparelho; nome; caixa "Tenho direito de acesso a este conteúdo" com explicação de que o NUVORA é só um reprodutor; "Testar e salvar"; "Pronto! N itens encontrados" → "Ir para o Início"). Na TV só aparece o link; o foco já começa no primeiro campo.
+- Home com a lista: destaques, categorias da lista, itens por categoria (amostra de até 40 por categoria, 30 categorias), Continuar assistindo, Favoritos e Histórico. Busca direto no banco (até 100 resultados). Tocar abre o player com o endereço decifrado só naquele momento.
+- **Capas e logos** com Coil + rede (OkHttp): no máximo 15% da memória do app e 100 MB no armazenamento, apagando as mais antigas.
+- Listas e provedores em **http** liberados (configuração de rede). Risco explicado à Glaucia: nesses casos a comunicação com o fornecedor não é criptografada.
+- Campo de busca com nome para leitor de tela; Ajustes rola; campos de texto da TV (`NuvoraTextField`) não prendem o foco.
+- **APK final: 2,38 MB** (era 1,52 MB; +0,86 MB do leitor de listas, banco, capas pela internet).
+
+### Testes (emuladores na nuvem, 31/10/2026; listas servidas pelo próprio computador de teste em http)
+- Celular e tablet: adicionar lista por link → "Pronto! 4 itens encontrados" → Home com as categorias da lista e logos → tocar item da lista (player abre e anda). **OK.**
+- **Lista gigante de 20.000 itens: importada em 1,9 a 4,9 s; memória não subiu** (≈107 MB → ≈101 MB depois de importar e abrir a Home). Busca "Item 19999" achou o item. **OK.**
+- Link errado → "Não encontramos a lista nesse endereço. Confira o link." **OK.**
+- TV só com controle: Ajustes → Adicionar lista → digitar nome e link → marcar direito de acesso → Testar e salvar → "Pronto! 4 itens" → Início com a lista. **OK.**
+- **Defeitos achados e corrigidos:** na TV, com o teclado fechado, as setas não saíam do campo de texto (a pessoa ficava presa) — corrigido também na busca da TV; Ajustes não rolava (itens ficavam fora da tela).
+- Não testado: importação por **arquivo** (precisa do seletor de arquivos do Android, difícil de automatizar) — testar no celular real; listas reais de fornecedores.
+- Pendências: o título "Adicionados recentemente" não faz sentido para listas — trocar por "Da sua lista" (pequeno, pedir ok); TV ao sair do player às vezes sem foco; acessibilidade da faixa inferior.
 
 ---
 
