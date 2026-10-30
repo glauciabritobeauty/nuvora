@@ -99,7 +99,8 @@ adb shell settings put global hide_error_dialogs 1
 # Memória total do app (PSS, em KB), depois de pedir ao app para limpar o lixo da memória (coleta de lixo).
 total_pss() {
   local pid
-  pid=$(adb shell pidof "$PKG" | tr -d '')
+  pid=$(adb shell pidof "$PKG" | tr -d '
+')
   [ -n "$pid" ] && adb shell run-as "$PKG" kill -10 "$pid" 2> /dev/null
   sleep 4
   adb shell dumpsys meminfo "$PKG" | grep "TOTAL PSS" | awk '{print $3}'
@@ -212,7 +213,7 @@ EOF
 
   # Etapa 6: player pelo controle. Primeiro, ir com certeza ao Início pelo menu.
   key $BACK; for i in 1 2 3 4 5; do key $U; done; key $D; focus "22. menu: Início"; key $OK; sleep 3
-  focus "23. Home: foco no Assistir"
+  key $R; sleep 1; focus "23. Home: foco no Assistir"
   MEM_ANTES=$(total_pss)
   key $OK; sleep 15; shot 15-player-tocando
   key $U; T1=$(read_time); focus "24. seta mostra controles (foco no tocar/pausar)"; shot 16-player-controles
@@ -221,6 +222,19 @@ EOF
   key $BACK; sleep 1; check_text "Tempo atual" nao
   key $BACK; sleep 3; focus "25. Voltar sai do player e volta à Home"; shot 17-voltou-home
   MEM_1=$(total_pss)
+  # Troca de áudio no vídeo DASH com vários idiomas (Exemplo 2), só com o controle.
+  key $D; key $D; key $R; focus "26. cartão Exemplo 2"; key $OK; sleep 15
+  key $U; focus "27. controles"; key $OK; sleep 1          # pausa (foco começa no tocar/pausar)
+  key $D; key $D; for i in 1 2 3 4 5; do key $L; done; focus "28. botão Áudio"
+  key $OK; sleep 1; focus "29. janela de áudio"
+  for i in 1 2 3 4 5 6 7 8; do
+    if echo "$LAST_FOCUS" | grep -q "Espanhol"; then break; fi
+    key $U; focus "  procurando Espanhol"
+  done
+  key $OK; sleep 2
+  key $U; key $D; key $D; for i in 1 2 3 4 5; do key $L; done; key $OK; sleep 1
+  check_text "Espanhol (atual)" sim; shot 18-audio-trocado
+  key $BACK; key $BACK; key $BACK; sleep 3; focus "30. voltou à Home"
   for i in 1 2 3; do key $OK; sleep 8; key $BACK; key $BACK; sleep 3; done
   MEM_4=$(total_pss)
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 4ª saída $MEM_4" >> "$STEPS"
@@ -296,13 +310,8 @@ else
   key KEYCODE_BACK; sleep 3; shot 23-voltou-home
   check_text "Assistir" sim
   MEM_1=$(total_pss)
-  # Exemplo 2 = DASH com vários idiomas: troca de áudio.
-  swipe_up; tap_card "Exemplo 2"; sleep 15
-  show_controls; tap_text "Pausar"; tap_text "Áudio"; shot 24-opcoes-audio
-  tap_text "Espanhol"; check_text "Áudio" sim; tap_text "Tocar"; sleep 5
-  show_controls; tap_text "Pausar"; tap_text "Áudio"; check_text "Espanhol (atual)" sim; shot 25-audio-trocado; tap_text "Fechar"
-  key KEYCODE_BACK; sleep 3
   # Exemplo 3 = MP4 de 10 s: chega ao fim e mostra o botão de tocar de novo.
+  tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"; adb shell input text "Exemplo%s3"; sleep 1; key KEYCODE_BACK
   tap_card "Exemplo 3"; sleep 25; check_text "Tocar" sim; shot 26-mp4-terminou
   key KEYCODE_BACK; sleep 3
   tap_tab "Histórico" 4; check_text "Destaque de exemplo 1" sim; shot 27-historico-apos-assistir

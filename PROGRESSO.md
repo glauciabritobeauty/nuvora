@@ -189,7 +189,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 | Memória (PSS) | 68 MB | 79 MB | 72 MB |
 
 - **Tamanho do APK final otimizado: 1,35 MB** (meta < 15 MB). O APK de teste tem 13 MB por não ser otimizado.
-- Problema encontrado e **ainda aberto**: no emulador de celular, a "leitura da tela" usada pelos leitores de acessibilidade (TalkBack) informa o menu inferior com tamanho zero; no tablet está correto. No teste automático, as abas do celular foram tocadas pela posição. Causa ainda não identificada — investigar com o TalkBack ligado (Etapa 9 ou antes).
+- Problema encontrado e **ainda aberto**: no emulador de celular, a "leitura da tela" usada pelos leitores de acessibilidade (TalkBack) informa o menu inferior com tamanho zero; no tablet está correto. No teste automático, as abas do celular foram tocadas pela posição. Causa ainda não identificada — investigar com o TalkBack ligado (Etapa 9 ou antes). **Pista (31/10/2026):** o mesmo acontece com a fileira de baixo dos controles do player no tablet — tudo o que fica na faixa inferior da tela aparece com tamanho zero para a leitura de acessibilidade.
 - Ainda **não testado em aparelho real**.
 
 ---
