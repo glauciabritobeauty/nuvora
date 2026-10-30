@@ -77,14 +77,28 @@ else
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
   swipe_up() { adb shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 3)) 500; sleep 2; }
 
+  # Toca numa aba do menu de baixo (1 a 5): pelo nome; se a leitura da tela não der a posição, pela posição.
+  tap_tab() {
+    local before
+    before=$(grep -c FALHOU "$STEPS" 2> /dev/null || true)
+    tap_text "$1"
+    if [ "$(grep -c FALHOU "$STEPS" 2> /dev/null || true)" != "$before" ]; then
+      adb shell input tap $((W * (2 * $2 - 1) / 10)) $((H - H * 10 / 100))
+      echo "  -> tocou em '$1' pela posição" >> "$STEPS"
+      sleep 2
+    fi
+  }
+
+  adb shell uiautomator dump --compressed /sdcard/ui.xml > /dev/null 2>&1
+  adb shell cat /sdcard/ui.xml > "$OUT/$NAME-leitura-inicio.xml"
   tap_text "Ver demonstração"; shot 02-home-demonstracao
   tap_text "Adicionar aos favoritos"; shot 03-favoritado
   swipe_up; tap_text "Séries"; shot 04-categoria-series
   swipe_up; shot 05-favoritos-e-historico
-  tap_text "Buscar"; tap_text "Filmes, séries e canais"
+  tap_tab "Buscar" 2; tap_text "Filmes, séries e canais"
   adb shell input text "Exemplo%s1"; sleep 2; key KEYCODE_BACK; shot 06-busca
-  tap_text "Favoritos"; shot 07-aba-favoritos
-  tap_text "Ajustes"; shot 08-aba-ajustes
+  tap_tab "Favoritos" 3; shot 07-aba-favoritos
+  tap_tab "Ajustes" 5; shot 08-aba-ajustes
   key KEYCODE_BACK; shot 09-voltar-para-inicio
   tap_text "Ver tudo"; shot 10-ver-tudo
   key KEYCODE_BACK
