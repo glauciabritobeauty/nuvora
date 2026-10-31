@@ -293,11 +293,17 @@ EOF
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 
   # Etapa 7 (Parte 1): adicionar lista por link só com o controle.
-  # Reabre o app (se um Voltar a mais tiver saído dele) e vai ao menu lateral, até Ajustes (último item).
-  adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 3
-  for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
-  key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $U; key $OK; sleep 2
-  focus "33. tela Adicionar lista"; focus_until "Link da lista" $D; key $OK; sleep 2
+  # Reabre o app (se um Voltar a mais tiver saído dele). Sem lista, ele abre nas boas-vindas (que já são o cadastro).
+  adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 4
+  read_ui
+  if grep -q 'Bem-vindo ao NUVORA' ui.xml; then
+    focus "31. boas-vindas na TV"; focus_until "Link da lista" $U; focus_until "Link da lista" $D
+  else
+    for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
+    key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $U; key $OK; sleep 2
+    focus "33. tela Adicionar lista"; focus_until "Link da lista" $D
+  fi
+  key $OK; sleep 2
   focus "34. foco no primeiro campo"; focus_until "Minha lista" $D
   key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
   focus_until "http://" $D; key $OK; sleep 2; adb shell input text "http://10.0.2.2:8000/teste.m3u"; key $BACK
@@ -397,8 +403,13 @@ else
 
   # Etapa 7 (Parte 1): listas por link.
   tap_tab "Ajustes" 5; tap_text "Voltar ao tamanho normal"; tap_text "Desligar demonstração"
+  # Sem nenhuma lista, o app mostra as boas-vindas (já é o cadastro); senão, vai por Ajustes > Adicionar lista.
+  open_add() {
+    read_ui
+    if grep -q 'Bem-vindo ao NUVORA' ui.xml; then echo "  (boas-vindas na tela)" >> "$STEPS"; else tap_tab "Ajustes" 5; tap_text "Adicionar lista"; fi
+  }
   add_link() {
-    tap_tab "Ajustes" 5; tap_text "Adicionar lista"; tap_text "Link da lista"
+    open_add; tap_text "Link da lista"
     tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
     tap_text "http://..."; adb shell input text "$2"; key KEYCODE_BACK
     tap_text "Tenho direito de acesso a este conteúdo."
@@ -447,7 +458,7 @@ else
 
   # Etapa 7 (Parte 2): Provedor, Usuário e Senha.
   add_provider() {
-    tap_tab "Ajustes" 5; tap_text "Adicionar lista"; tap_text "Provedor, usuário e senha"
+    open_add; tap_text "Provedor, usuário e senha"
     tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
     tap_text "http://exemplo.com:8080"; adb shell input text "$2"; key KEYCODE_BACK
     if [ -n "${3:-}" ]; then
@@ -469,7 +480,7 @@ else
   tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Canal%sHLS"; key KEYCODE_BACK; sleep 2
   adb logcat -c; tap_card "Canal HLS de teste"; sleep 15
   check_log "aberto id="; check_playing "canal ao vivo do provedor"; key KEYCODE_BACK; sleep 3
-  tap_text "Campo de busca"; clear_field; adb shell input text "Série"; key KEYCODE_BACK; sleep 2
+  tap_text "Campo de busca"; clear_field; adb shell input text "rie%sde%steste"; key KEYCODE_BACK; sleep 2
   tap_card "Série de teste"; wait_text "T1 E2 · Episódio 2" 30; shot 43-episodios
   adb logcat -c; tap_text "T1 E2 · Episódio 2"; sleep 12
   check_log "-e402"; check_playing "episódio de série"; key KEYCODE_BACK; sleep 3
