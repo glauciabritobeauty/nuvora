@@ -62,6 +62,9 @@ enum class ImportFailure(val message: String) {
     WrongLogin("Usuário ou senha incorretos. Confira e tente de novo."),
     Expired("A sua assinatura venceu. Fale com o seu fornecedor."),
     NotAServer("Esse endereço não respondeu como um provedor. Confira o campo Provedor."),
+    ServerNotFound("Não encontramos o servidor do provedor. Confira o endereço no campo Provedor."),
+    NotRecognized("O provedor não reconheceu esse usuário e senha. Confira letra por letra (maiúsculas e minúsculas contam) ou peça ao seu fornecedor para conferir se o acesso está ativo."),
+    RequestRejected("O provedor não aceitou o pedido do NUVORA. Copie o relatório de conexão e mande para o suporte."),
     Other("Não foi possível ler a lista. Tente de novo."),
 }
 
@@ -73,9 +76,12 @@ sealed interface ImportProgress {
 }
 
 sealed interface ImportResult {
-    data class Success(val itemCount: Int) : ImportResult
+    /** [report]: relatório de conexão (só no Provedor/Usuário/Senha), sem usuário nem senha. */
+    val report: ConnectionReport? get() = null
+
+    data class Success(val itemCount: Int, override val report: ConnectionReport? = null) : ImportResult
     /** [detail]: código curto para o suporte (ex.: "HTTP 456"), mostrado pequeno embaixo da mensagem. Nunca contém senha. */
-    data class Failure(val reason: ImportFailure, val detail: String? = null) : ImportResult
+    data class Failure(val reason: ImportFailure, val detail: String? = null, override val report: ConnectionReport? = null) : ImportResult
 }
 
 /** O que a Home mostra de todas as listas juntas (só uma amostra por categoria, nunca a lista inteira). */
@@ -127,12 +133,27 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
 
     /** Provedor / Usuário / Senha: confere o acesso e busca canais, filmes e séries. */
     suspend fun addProvider(name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
-        val clean = runCatching { login.copy(server = normalizeServer(login.server)) }.getOrElse {
-            return@io ImportResult.Failure(ImportFailure.NotAServer, "endereço inválido")
+        // Teclados de celular costumam pôr um espaço no fim: usuário e senha com espaço nunca conferem.
+        val typed = login.copy(user = login.user.trim(), password = login.password.trim())
+        val report = ReportBuilder(typed.user, typed.password, reportHeader())
+        val clean = runCatching { typed.copy(server = normalizeServer(typed.server)) }.getOrElse {
+            report.add("Endereço do provedor", null, "não é um endereço de internet válido", false)
+            report.problem = ProblemKind.RequestFormat
+            report.conclusion = "O texto do campo Provedor não é um endereço (ex.: http://exemplo.com:8080)."
+            return@io ImportResult.Failure(ImportFailure.NotAServer, "endereço inválido", report.build())
         }
-        importFrom(sourceId = null, name = name, kind = SourceKind.Provider, address = encodeLogin(clean), onProgress = onProgress) { emit ->
-            importProvider(clean, onProgress, emit)
+        report.add("Endereço do provedor", clean.server, "entendido como ${report.maskUrl(clean.server)}", true)
+        val providerName = name.trim().ifEmpty { runCatching { java.net.URI(clean.server).host }.getOrNull().orEmpty() }
+        importFrom(sourceId = null, name = providerName, kind = SourceKind.Provider, address = encodeLogin(clean), onProgress = onProgress, report = report) { emit ->
+            importProvider(clean, report, onProgress, emit)
         }
+    }
+
+    private fun reportHeader(): String {
+        val version = runCatching { appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName }.getOrNull()
+        val tv = appContext.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        return "NUVORA ${version ?: "?"} · Android ${android.os.Build.VERSION.RELEASE} · ${if (tv) "TV" else "celular/tablet"} · " +
+            java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale("pt", "BR")).format(java.util.Date())
     }
 
     /** Episódios de uma série de provedor (buscados na hora, só quando a pessoa abre a série). */
@@ -162,11 +183,13 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     /** Lê a lista de novo (o fornecedor pode ter mudado). Se der errado, a versão antiga continua valendo. */
     suspend fun refresh(id: Long): ImportResult = io {
         val (name, kind, address) = sourceAddress(id) ?: return@io ImportResult.Failure(ImportFailure.Other)
-        importFrom(sourceId = id, name = name, kind = kind, address = address) { emit ->
+        val login = if (kind == SourceKind.Provider) decodeLogin(address) else null
+        val report = login?.let { ReportBuilder(it.user, it.password, reportHeader()) }
+        importFrom(sourceId = id, name = name, kind = kind, address = address, report = report) { emit ->
             when (kind) {
                 SourceKind.Link -> m3u(downloadToCache(address) {}, emit)
                 SourceKind.File -> m3u(openFile(Uri.parse(address)), emit)
-                SourceKind.Provider -> importProvider(decodeLogin(address), {}, emit)
+                SourceKind.Provider -> importProvider(login!!, report!!, {}, emit)
             }
         }
     }
@@ -256,6 +279,35 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         kind: SourceKind,
         address: String,
         onProgress: (ImportProgress) -> Unit = {},
+        report: ReportBuilder? = null,
+        produce: (emit: (M3uEntry) -> Unit) -> M3uSummary,
+    ): ImportResult {
+        val result = importInto(sourceId, name, kind, address, onProgress, produce)
+        if (report == null) return result
+        if (result is ImportResult.Success) {
+            report.problem = null
+            report.conclusion = "Tudo certo: ${result.itemCount} itens."
+        } else if (report.problem == null) {
+            report.problem = if (report.loginOk) ProblemKind.ListLoading else when ((result as ImportResult.Failure).reason) {
+                ImportFailure.NoInternet, ImportFailure.ConnectionDropped, ImportFailure.InvalidCertificate, ImportFailure.ServerNotFound -> ProblemKind.Network
+                else -> ProblemKind.ServerResponse
+            }
+            report.conclusion = (result as ImportResult.Failure).reason.message
+        }
+        val built = report.build()
+        if (debug) Log.i("NuvoraFontes", "relatorio de conexao:\n${built.asText()}")
+        return when (result) {
+            is ImportResult.Success -> result.copy(report = built)
+            is ImportResult.Failure -> result.copy(report = built)
+        }
+    }
+
+    private fun importInto(
+        sourceId: Long?,
+        name: String,
+        kind: SourceKind,
+        address: String,
+        onProgress: (ImportProgress) -> Unit,
         produce: (emit: (M3uEntry) -> Unit) -> M3uSummary,
     ): ImportResult {
         val started = SystemClock.elapsedRealtime()
@@ -327,16 +379,37 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     private fun m3u(input: InputStream, emit: (M3uEntry) -> Unit): M3uSummary =
         input.use { parseM3u(InputStreamReader(it, Charsets.UTF_8), emit) }
 
-    private fun importProvider(login: ProviderLogin, onProgress: (ImportProgress) -> Unit, emit: (M3uEntry) -> Unit): M3uSummary {
-        val client = XtreamClient(login) { url -> downloadToCache(url) {} }
+    private fun importProvider(
+        login: ProviderLogin,
+        report: ReportBuilder,
+        onProgress: (ImportProgress) -> Unit,
+        emit: (M3uEntry) -> Unit,
+    ): M3uSummary {
+        val client = XtreamClient(login, report, ::hasInternet) { url -> downloadToCache(url) {} }
         onProgress(ImportProgress.Step("Conferindo usuário e senha..."))
         var mark = SystemClock.elapsedRealtime()
-        client.checkLogin()
+        val access = client.connect()
         if (debug) Log.i("NuvoraFontes", "medida login ${SystemClock.elapsedRealtime() - mark} ms")
         mark = SystemClock.elapsedRealtime()
-        val count = client.importAll({ onProgress(ImportProgress.Step(it)) }, emit)
-        if (debug) Log.i("NuvoraFontes", "medida conteudo $count itens ${SystemClock.elapsedRealtime() - mark} ms")
-        return M3uSummary(looksLikeM3u = true, entries = count)
+        val summary = when (access) {
+            ProviderAccess.Api -> M3uSummary(looksLikeM3u = true, entries = client.importAll({ onProgress(ImportProgress.Step(it)) }, emit))
+            is ProviderAccess.FullList -> {
+                // Plano B: o provedor só entrega a lista completa; usa a mesma leitura das listas por link.
+                onProgress(ImportProgress.Step("Usuário e senha aceitos. Baixando a lista do provedor..."))
+                var count = 0
+                try {
+                    m3u(downloadToCache(access.url, onProgress)) { emit(it); count++ }.also {
+                        report.add("Lista completa (get.php)", access.url, "${it.entries} itens em ${SystemClock.elapsedRealtime() - mark} ms", it.entries > 0)
+                    }
+                } catch (e: IOException) {
+                    val detail = (e as? DetailedFailure)?.detail ?: e.javaClass.simpleName
+                    report.add("Lista completa (get.php)", access.url, "falhou: $detail ($count itens lidos até aqui)", false)
+                    throw e
+                }
+            }
+        }
+        if (debug) Log.i("NuvoraFontes", "medida conteudo ${summary.entries} itens ${SystemClock.elapsedRealtime() - mark} ms")
+        return summary
     }
 
     // Provedor/Usuário/Senha guardados juntos (e cifrados) no campo de endereço.
@@ -463,7 +536,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         }
     }
 
-    private class ImportException(val reason: ImportFailure, val detail: String? = null) : IOException(reason.name)
+    private class ImportException(val reason: ImportFailure, override val detail: String? = null) : IOException(reason.name), DetailedFailure
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 

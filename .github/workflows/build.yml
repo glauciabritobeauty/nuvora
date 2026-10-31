@@ -108,9 +108,73 @@ jobs:
           name: telas-${{ matrix.name }}
           path: out/
 
+  login:
+    name: Login com provedor (${{ matrix.name }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: celular
+            target: google_apis
+            arch: x86_64
+            profile: pixel_5
+          - name: tv
+            target: android-tv
+            arch: x86
+            profile: tv_1080p
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: nuvora-otimizada
+          path: apk
+      - name: Servidor que imita o provedor real (com vídeo local)
+        run: |
+          which ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+          mkdir -p video
+          ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 120             -c:v libx264 -preset veryfast -b:v 2000k -g 60 -c:a aac -b:a 128k             -f hls -hls_time 4 -hls_playlist_type vod -hls_segment_filename video/seg%03d.ts -hls_base_url /video/ video/canal.m3u8
+          python3 ci/listas.py
+          nohup python3 ci/provedor_intermediario.py 8900 video > intermediario.log 2>&1 &
+          sleep 3
+          # Confere que responde igual ao provedor real com dados errados.
+          curl -s -o /dev/null -w "player_api sem dados: %{http_code}
+" http://127.0.0.1:8900/player_api.php
+          curl -s -o /dev/null -w "player_api dados errados: %{http_code}
+" "http://127.0.0.1:8900/player_api.php?username=x&password=y"
+          curl -s -o /dev/null -w "get.php dados errados: %{http_code}
+" "http://127.0.0.1:8900/get.php?username=x&password=y&type=m3u_plus"
+      - name: Habilitar aceleração (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          profile: ${{ matrix.profile }}
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash ci/login.sh ${{ matrix.name }} "$(ls apk/*.apk)"
+      - name: Resultado
+        if: always()
+        run: |
+          cp intermediario.log out/ 2> /dev/null || true
+          cat out/${{ matrix.name }}-login-passos.txt || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: login-${{ matrix.name }}
+          path: out/
+
   medicoes:
     name: Medir antes e depois a 8 Mega (${{ matrix.name }})
     needs: build
+    # Só quando pedido à mão (economiza tempo de máquina nas etapas que não mexem em velocidade).
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

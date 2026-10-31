@@ -50,73 +50,297 @@ internal fun normalizeServer(raw: String): String {
     return "${url.protocol}://${url.host}$port"
 }
 
+/** Como entrar no provedor, descoberto pelo [XtreamClient.connect]. */
+internal sealed interface ProviderAccess {
+    /** O provedor fala o padrão completo: categorias, canais, filmes e séries em pedidos separados. */
+    data object Api : ProviderAccess
+
+    /** O provedor só entrega a lista completa num endereço (plano B). */
+    data class FullList(val url: String) : ProviderAccess
+}
+
+/** O que o provedor respondeu no login (só o que importa; usuário e senha ecoados são ignorados). */
+private class LoginInfo(val auth: Int?, val status: String?, val expDate: Long?, val formats: List<String>)
+
 /**
  * Conversa com o provedor no padrão Provedor/Usuário/Senha: confere o acesso e busca canais, filmes e séries
  * em pedidos separados (bem mais leve e confiável do que uma lista gigante de uma vez).
  * Cada resposta é lida aos poucos ([JsonReader]), sem guardar tudo na memória.
+ * Cada pedido e resposta vai para o relatório de conexão ([report]), sem usuário nem senha.
  */
 internal class XtreamClient(
     private val login: ProviderLogin,
+    private val report: ReportBuilder? = null,
+    private val hasInternet: () -> Boolean = { true },
     /** Baixa um endereço (com novas tentativas, http automático etc.) e devolve o conteúdo. */
     private val fetch: (String) -> InputStream,
 ) {
-    private val base = "${login.server}/player_api.php?username=${enc(login.user)}&password=${enc(login.password)}"
+    private val credentials = "username=${enc(login.user)}&password=${enc(login.password)}"
+    private val base = "${login.server}/player_api.php?$credentials"
     private var liveFormat = "m3u8"
 
-    /** Confere usuário e senha; lança [XtreamException] com o motivo se não der. */
-    fun checkLogin() {
+    /**
+     * Confere usuário e senha e descobre como este provedor entrega o conteúdo:
+     * 1) pelo jeito padrão (player_api); 2) se recusar o formato do pedido, pelo mesmo jeito em POST;
+     * 3) plano B: a lista completa pelo link (get.php) com o mesmo usuário e senha.
+     * Lança [XtreamException] com o motivo e o tipo de problema quando nenhum caminho funciona.
+     */
+    fun connect(): ProviderAccess {
+        val replies = ArrayList<HttpReply>()
+        val first = probe("Login pelo jeito padrão (player_api)", base)
+        replies += first
+        loginFrom(first)?.let { return it }
+        if (first.code == 400 || first.code == 405 || first.code == 422) {
+            val post = probe("Login pelo jeito alternativo (mesmo pedido, enviado como formulário)", "${login.server}/player_api.php", form = credentials)
+            replies += post
+            loginFrom(post)?.let { return it }
+        }
+        for (variant in listOf("&type=m3u_plus&output=hls", "&type=m3u_plus")) {
+            val url = "${login.server}/get.php?$credentials$variant"
+            val reply = probe("Plano B: lista completa pelo link (get.php)", url, maxBytes = 4 * 1024)
+            replies += reply
+            if (reply.code in 200..299 && reply.isM3u()) {
+                report?.loginOk = true
+                report?.add(
+                    "Recursos do provedor",
+                    null,
+                    "o jeito padrão não funcionou, mas a lista completa pelo link sim (usuário e senha aceitos). " +
+                        "Consultas separadas por categoria não estão disponíveis neste provedor.",
+                    true,
+                )
+                return ProviderAccess.FullList(url)
+            }
+            if (reply.code.isLimit()) fail(ImportFailure.Limited, ProblemKind.ServerResponse, "HTTP ${reply.code}", "O provedor limitou o acesso (código ${reply.code}).")
+        }
+        throw conclude(replies)
+    }
+
+    /** Decide o motivo quando nenhum caminho funcionou, olhando todas as respostas juntas. */
+    private fun conclude(replies: List<HttpReply>): XtreamException {
+        val codes = replies.map { it.code }
+        val api = replies.first().code
+        val list = replies.last().code
+        return when {
+            codes.any { it >= 500 } -> exception(ImportFailure.ServerError, ProblemKind.ServerResponse, "HTTP ${codes.first { it >= 500 }}",
+                "O provedor respondeu com erro interno (código ${codes.first { it >= 500 }}). Costuma ser passageiro.")
+            // Recusou o pedido padrão E não achou lista para esse usuário: o mais provável é usuário/senha não reconhecidos.
+            (api in setOf(400, 401, 403, 422)) && list in setOf(401, 403, 404) -> exception(ImportFailure.NotRecognized, ProblemKind.Authentication,
+                "player_api HTTP $api · get.php HTTP $list",
+                "O provedor recusou os dois jeitos de entrar com esse usuário e senha. O mais provável é usuário ou senha " +
+                    "diferente do cadastrado no provedor (ou acesso desativado). O formato dos pedidos é o mesmo que funciona em outros provedores.")
+            api == 404 && list == 404 -> exception(ImportFailure.NotAServer, ProblemKind.ServerResponse, "HTTP 404",
+                "Nesse endereço não existe provedor no padrão Provedor/Usuário/Senha. Confira o campo Provedor.")
+            codes.all { it in 200..299 } -> exception(ImportFailure.NotAServer, ProblemKind.ServerResponse, "resposta inesperada",
+                "O endereço respondeu, mas não como um provedor (veio outro tipo de conteúdo).")
+            else -> exception(ImportFailure.RequestRejected, ProblemKind.RequestFormat, "player_api HTTP $api · get.php HTTP $list",
+                "O provedor recusou todos os formatos de pedido conhecidos.")
+        }
+    }
+
+    /** Lê a resposta do login. Devolve [ProviderAccess.Api] se entrou, null se é para tentar outro caminho. */
+    private fun loginFrom(reply: HttpReply): ProviderAccess? {
+        if (reply.code.isLimit()) fail(ImportFailure.Limited, ProblemKind.ServerResponse, "HTTP ${reply.code}", "O provedor limitou o acesso (código ${reply.code}).")
+        if (reply.code !in 200..299) return null
+        val info = parseLogin(reply.text) ?: return null
+        if (info.auth == null) return null
+        if (info.auth != 1) {
+            fail(ImportFailure.WrongLogin, ProblemKind.Authentication, "auth=0",
+                "O provedor respondeu no padrão e disse que o usuário ou a senha não conferem (auth=0).")
+        }
+        when (info.status?.lowercase()) {
+            "expired" -> fail(ImportFailure.Expired, ProblemKind.Authentication, info.expDate?.let { "venceu em ${formatDate(it)}" } ?: "Expired",
+                "Usuário e senha certos, mas a assinatura está vencida.")
+            "banned", "disabled" -> fail(ImportFailure.Denied, ProblemKind.Authentication, info.status,
+                "Usuário e senha certos, mas o acesso está bloqueado (${info.status}).")
+        }
+        if (info.formats.isNotEmpty() && "m3u8" !in info.formats && "ts" in info.formats) liveFormat = "ts"
+        report?.loginOk = true
+        return ProviderAccess.Api
+    }
+
+    private fun probe(title: String, url: String, form: String? = null, maxBytes: Int = 64 * 1024): HttpReply {
+        val reply = try {
+            httpProbe(url, form, maxBytes)
+        } catch (e: java.io.IOException) {
+            val offline = !hasInternet()
+            report?.add(title, url, "sem resposta: ${e.javaClass.simpleName}" + if (offline) " (aparelho sem internet)" else "", false)
+            when {
+                offline -> fail(ImportFailure.NoInternet, ProblemKind.Network, e.javaClass.simpleName, "O aparelho está sem internet.")
+                e is java.net.UnknownHostException -> fail(ImportFailure.ServerNotFound, ProblemKind.Network, "endereço não existe",
+                    "O endereço do campo Provedor não foi encontrado na internet (confira se digitou certo).")
+                e.isNetworkFailure() -> fail(ImportFailure.ServerError, ProblemKind.Network, e.javaClass.simpleName,
+                    "O servidor do provedor não respondeu (desligado, fora do ar ou bloqueando a conexão).")
+                e is javax.net.ssl.SSLException -> fail(ImportFailure.InvalidCertificate, ProblemKind.Network, e.javaClass.simpleName,
+                    "O certificado de segurança do provedor é inválido.")
+                else -> fail(ImportFailure.ConnectionDropped, ProblemKind.Network, e.javaClass.simpleName, "A conexão caiu no meio da resposta.")
+            }
+        }
+        val ok = reply.code in 200..299 && (parseLogin(reply.text)?.auth == 1 || reply.isM3u())
+        report?.add(title, url, describe(reply), ok)
+        return reply
+    }
+
+    /** Resumo da resposta para o relatório: código, tipo, tamanho, tempo e o formato do conteúdo (sem dados pessoais). */
+    private fun describe(reply: HttpReply): String = buildString {
+        append("HTTP ${reply.code}")
+        reply.contentType?.let { append(" · ${it.substringBefore(';').trim()}") }
+        append(" · ${reply.body.size}${if (reply.truncated) "+" else ""} bytes · ${reply.millis} ms")
+        if (reply.redirects.isNotEmpty()) {
+            append(" · redirecionado para ${reply.redirects.joinToString(" → ") { report?.maskUrl(it) ?: MASK }}")
+        }
+        append(" · conteúdo: ${shape(reply)}")
+    }
+
+    private fun shape(reply: HttpReply): String {
+        val text = reply.text.trimStart('﻿', ' ', '\n', '\r', '\t')
+        return when {
+            text.isEmpty() -> "vazio"
+            reply.isM3u() -> "lista M3U"
+            text.startsWith("{") || text.startsWith("[") -> runCatching { summarizeJson(text) }.getOrDefault("JSON incompleto ou inválido")
+            text.startsWith("<") -> "página HTML (não é resposta de provedor)"
+            else -> "texto " + (report?.serverText(text.take(80)) ?: "")
+        }
+    }
+
+    /** "objeto {user_info{auth=1, status=Active}, server_info{url=..}}" — só campos que não são pessoais. */
+    private fun summarizeJson(text: String): String {
+        val json = JsonReader(java.io.StringReader(text))
+        json.isLenient = true
+        if (json.peek() == JsonToken.BEGIN_ARRAY) {
+            var count = 0
+            json.beginArray()
+            while (json.hasNext()) {
+                json.skipValue()
+                count++
+            }
+            return "lista JSON com $count itens"
+        }
+        val parts = ArrayList<String>()
+        json.beginObject()
+        while (json.hasNext()) {
+            val name = json.nextName()
+            when {
+                (name == "user_info" || name == "server_info") && json.peek() == JsonToken.BEGIN_OBJECT -> {
+                    val safe = if (name == "user_info") USER_INFO_SAFE else SERVER_INFO_SAFE
+                    val fields = ArrayList<String>()
+                    json.beginObject()
+                    while (json.hasNext()) {
+                        val field = json.nextName()
+                        val value = json.nextLooseString()
+                        if (field in safe) fields += "$field=${if (field == "exp_date") value?.toLongOrNull()?.let { formatDate(it) } ?: value else value}"
+                    }
+                    json.endObject()
+                    parts += "$name{${fields.joinToString(", ")}}"
+                }
+                name in setOf("error", "message", "msg", "status") -> parts += "$name=" + (json.nextLooseString()?.let { report?.serverText(it) } ?: "(vazio)")
+                else -> {
+                    json.skipValue()
+                    parts += name
+                }
+            }
+        }
+        return "objeto JSON {${parts.joinToString(", ")}}"
+    }
+
+    private fun parseLogin(text: String): LoginInfo? = runCatching {
         var auth: Int? = null
         var status: String? = null
         var expDate: Long? = null
         val formats = mutableListOf<String>()
-        read(base) { json ->
-            if (json.peek() != JsonToken.BEGIN_OBJECT) throw XtreamException(ImportFailure.NotAServer, "resposta não é JSON")
+        val json = JsonReader(java.io.StringReader(text))
+        if (json.peek() != JsonToken.BEGIN_OBJECT) return@runCatching null
+        json.beginObject()
+        while (json.hasNext()) {
+            if (json.nextName() != "user_info" || json.peek() != JsonToken.BEGIN_OBJECT) {
+                json.skipValue()
+                continue
+            }
             json.beginObject()
             while (json.hasNext()) {
-                if (json.nextName() != "user_info" || json.peek() != JsonToken.BEGIN_OBJECT) {
-                    json.skipValue()
-                    continue
-                }
-                json.beginObject()
-                while (json.hasNext()) {
-                    when (json.nextName()) {
-                        "auth" -> auth = json.nextLooseString()?.toIntOrNull()
-                        "status" -> status = json.nextLooseString()
-                        "exp_date" -> expDate = json.nextLooseString()?.toLongOrNull()
-                        "allowed_output_formats" -> if (json.peek() == JsonToken.BEGIN_ARRAY) {
-                            json.beginArray()
-                            while (json.hasNext()) json.nextLooseString()?.let(formats::add)
-                            json.endArray()
-                        } else {
-                            json.skipValue()
-                        }
-                        else -> json.skipValue()
+                when (json.nextName()) {
+                    "auth" -> auth = json.nextLooseString()?.let { it.toIntOrNull() ?: if (it == "true") 1 else if (it == "false") 0 else null }
+                    "status" -> status = json.nextLooseString()
+                    "exp_date" -> expDate = json.nextLooseString()?.toLongOrNull()
+                    "allowed_output_formats" -> if (json.peek() == JsonToken.BEGIN_ARRAY) {
+                        json.beginArray()
+                        while (json.hasNext()) json.nextLooseString()?.let(formats::add)
+                        json.endArray()
+                    } else {
+                        json.skipValue()
                     }
+                    else -> json.skipValue()
                 }
-                json.endObject()
             }
             json.endObject()
         }
-        if (auth == null) throw XtreamException(ImportFailure.NotAServer, "sem user_info")
-        if (auth != 1) throw XtreamException(ImportFailure.WrongLogin, "auth=0")
-        when (status?.lowercase()) {
-            "expired" -> throw XtreamException(ImportFailure.Expired, expDate?.let { "venceu em ${formatDate(it)}" } ?: "Expired")
-            "banned", "disabled" -> throw XtreamException(ImportFailure.Denied, status)
-        }
-        if (formats.isNotEmpty() && "m3u8" !in formats && "ts" in formats) liveFormat = "ts"
+        LoginInfo(auth, status, expDate, formats)
+    }.getOrNull()
+
+    private fun HttpReply.isM3u() = text.trimStart('﻿', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", ignoreCase = true)
+
+    private fun Int.isLimit() = this == 429 || this == 456 || this == 458 || this == 509 || this == 884
+
+    private fun exception(reason: ImportFailure, kind: ProblemKind, detail: String?, conclusion: String): XtreamException {
+        report?.problem = kind
+        report?.conclusion = conclusion
+        return XtreamException(reason, detail, kind)
     }
+
+    private fun fail(reason: ImportFailure, kind: ProblemKind, detail: String?, conclusion: String): Nothing =
+        throw exception(reason, kind, detail, conclusion)
 
     /** Busca canais, filmes e séries, entregando cada item em [emit]. Devolve quantos itens foram entregues. */
     fun importAll(onStep: (String) -> Unit, emit: (M3uEntry) -> Unit): Int {
         var count = 0
         val countingEmit: (M3uEntry) -> Unit = { emit(it); count++ }
         onStep("Buscando canais...")
-        readItems("live", "TV", countingEmit)
+        val firstLiveCategory = readItems("live", "TV", countingEmit)
+        checkCategoryQuery(firstLiveCategory)
         onStep("Buscando filmes...")
         readItems("vod", "Filmes", countingEmit)
         onStep("Buscando séries...")
         readItems("series", "Séries", countingEmit)
         return count
+    }
+
+    /**
+     * Confere (só para o relatório) se o provedor aceita pedir os canais de UMA categoria,
+     * o que permite carregar aos poucos. [first]: id da 1ª categoria e quantos canais havia no total.
+     */
+    private fun checkCategoryQuery(first: Pair<String, Int>?) {
+        val report = report ?: return
+        if (first == null) return
+        val (categoryId, total) = first
+        val url = "$base&action=get_live_streams&category_id=${enc(categoryId)}"
+        val started = android.os.SystemClock.elapsedRealtime()
+        val result = runCatching {
+            var count = 0
+            read(url) { json ->
+                if (json.peek() != JsonToken.BEGIN_ARRAY) {
+                    json.skipValue()
+                    return@read
+                }
+                json.beginArray()
+                while (json.hasNext()) {
+                    json.skipValue()
+                    count++
+                }
+                json.endArray()
+            }
+            count
+        }
+        val millis = android.os.SystemClock.elapsedRealtime() - started
+        val text = result.fold(
+            onSuccess = { count ->
+                if (count in 1 until total) {
+                    "aceita: a 1ª categoria trouxe só $count de $total canais, em $millis ms (dá para carregar por categoria)"
+                } else {
+                    "não filtra: devolveu $count de $total canais (precisa ler tudo de uma vez)"
+                }
+            },
+            onFailure = { "não aceita: ${it.javaClass.simpleName}" },
+        )
+        report.add("Recursos do provedor: pedir canais de uma categoria só", url, text, result.getOrNull()?.let { it in 1 until total } == true)
     }
 
     fun episodes(seriesId: String): List<Episode> {
@@ -163,9 +387,39 @@ internal class XtreamClient(
         return list.sortedWith(compareBy({ it.season }, { it.number }))
     }
 
-    private fun readItems(kind: String, label: String, emit: (M3uEntry) -> Unit) {
-        val categories = HashMap<String, String>()
-        read("$base&action=get_${kind}_categories") { json ->
+    /** Lê categorias e itens de um tipo. Devolve o id da 1ª categoria e o total de itens (para o teste de recursos). */
+    private fun readItems(kind: String, label: String, emit: (M3uEntry) -> Unit): Pair<String, Int>? {
+        val categories = LinkedHashMap<String, String>()
+        var count = 0
+        val categoriesUrl = "$base&action=get_${kind}_categories"
+        recorded("$label: categorias", categoriesUrl, { "${categories.size} categorias" }) { readCategories(categoriesUrl, categories) }
+        val action = when (kind) {
+            "live" -> "get_live_streams"
+            "vod" -> "get_vod_streams"
+            else -> "get_series"
+        }
+        val itemsUrl = "$base&action=$action"
+        recorded("$label: itens", itemsUrl, { "$count itens" }) {
+            readStreams(itemsUrl, kind, label, categories) { emit(it); count++ }
+        }
+        return categories.keys.firstOrNull()?.let { it to count }
+    }
+
+    /** Faz o pedido e anota no relatório o resultado (ou a falha, que conta como erro de carregamento da lista). */
+    private fun recorded(title: String, url: String, summary: () -> String, block: () -> Unit) {
+        val started = android.os.SystemClock.elapsedRealtime()
+        try {
+            block()
+            report?.add(title, url, "${summary()} em ${android.os.SystemClock.elapsedRealtime() - started} ms", true)
+        } catch (e: Exception) {
+            val detail = (e as? DetailedFailure)?.detail ?: e.javaClass.simpleName
+            report?.add(title, url, "falhou depois de ${android.os.SystemClock.elapsedRealtime() - started} ms: $detail (${summary()} lidos até aqui)", false)
+            throw e
+        }
+    }
+
+    private fun readCategories(url: String, categories: MutableMap<String, String>) {
+        read(url) { json ->
             if (json.peek() != JsonToken.BEGIN_ARRAY) {
                 json.skipValue()
                 return@read
@@ -178,12 +432,10 @@ internal class XtreamClient(
             }
             json.endArray()
         }
-        val action = when (kind) {
-            "live" -> "get_live_streams"
-            "vod" -> "get_vod_streams"
-            else -> "get_series"
-        }
-        read("$base&action=$action") { json ->
+    }
+
+    private fun readStreams(url: String, kind: String, label: String, categories: Map<String, String>, emit: (M3uEntry) -> Unit) {
+        read(url) { json ->
             if (json.peek() != JsonToken.BEGIN_ARRAY) {
                 json.skipValue()
                 return@read
@@ -229,7 +481,19 @@ internal class XtreamClient(
     }
 }
 
-internal class XtreamException(val reason: ImportFailure, val detail: String?) : java.io.IOException(reason.name)
+/** Falha com um código curto para o suporte (ex.: "HTTP 404"); nunca contém senha. */
+internal interface DetailedFailure {
+    val detail: String?
+}
+
+internal class XtreamException(
+    val reason: ImportFailure,
+    override val detail: String?,
+    val kind: ProblemKind? = null,
+) : java.io.IOException(reason.name), DetailedFailure
+
+private val USER_INFO_SAFE = setOf("auth", "status", "exp_date", "is_trial", "active_cons", "max_connections")
+private val SERVER_INFO_SAFE = setOf("url", "port", "https_port", "server_protocol", "timezone")
 
 /** Lê qualquer valor simples como texto (provedores misturam números e textos nos mesmos campos). */
 private fun JsonReader.nextLooseString(): String? = when (peek()) {

@@ -1,5 +1,7 @@
 package com.nuvora.feature.sources
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
@@ -41,6 +43,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nuvora.core.data.SeriesEpisodes
+import com.nuvora.core.data.sources.ConnectionReport
 import com.nuvora.core.data.sources.Episode
 import com.nuvora.core.data.sources.ImportProgress
 import com.nuvora.core.data.sources.ProviderLogin
@@ -161,8 +164,70 @@ private fun Card(content: @Composable () -> Unit) {
 private sealed interface SaveStatus {
     data object Idle : SaveStatus
     data object Working : SaveStatus
-    data class Done(val count: Int) : SaveStatus
-    data class Failed(val message: String, val detail: String?) : SaveStatus
+    data class Done(val count: Int, val report: ConnectionReport?) : SaveStatus
+    data class Failed(val message: String, val detail: String?, val report: ConnectionReport?) : SaveStatus
+}
+
+/**
+ * "Ver relatório de conexão": cada passo do login, o que o provedor respondeu e a conclusão,
+ * com botão para copiar e mandar ao suporte. Usuário e senha nunca aparecem (vêm como •••).
+ */
+@Composable
+private fun ReportPanel(report: ConnectionReport) {
+    val colors = NuvoraTheme.colors
+    val context = LocalContext.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    NuvoraButton(
+        text = if (open) "Esconder relatório de conexão" else "Ver relatório de conexão",
+        icon = NuvoraIcons.File,
+        style = NuvoraButtonStyle.Secondary,
+        onClick = { open = !open },
+    )
+    if (!open) return
+    Card {
+        NuvoraText("Relatório de conexão", NuvoraTheme.typography.label)
+        NuvoraText(
+            "Usuário e senha não aparecem aqui: estão trocados por •••.",
+            NuvoraTheme.typography.caption,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+        )
+        report.steps.forEachIndexed { index, step ->
+            NuvoraText(
+                "${index + 1}. ${step.title}: ${if (step.ok) "ok" else "falhou"}",
+                NuvoraTheme.typography.caption,
+                color = if (step.ok) colors.accent else colors.error,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            step.request?.let { NuvoraText("Pedido: $it", NuvoraTheme.typography.caption, color = colors.textSecondary) }
+            NuvoraText("Resposta: ${step.result}", NuvoraTheme.typography.caption, color = colors.textSecondary)
+        }
+        report.problem?.let {
+            NuvoraText("Tipo do problema: ${it.label}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 10.dp))
+        }
+        NuvoraText("Conclusão: ${report.conclusion}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp))
+        Box(Modifier.padding(top = 12.dp)) {
+            NuvoraButton(
+                text = if (copied) "Relatório copiado" else "Copiar relatório",
+                icon = if (copied) NuvoraIcons.Check else NuvoraIcons.Link,
+                style = NuvoraButtonStyle.Secondary,
+                onClick = {
+                    context.getSystemService(ClipboardManager::class.java)
+                        ?.setPrimaryClip(ClipData.newPlainText("Relatório de conexão NUVORA", report.asText()))
+                    copied = true
+                },
+            )
+        }
+        if (copied) {
+            NuvoraText(
+                "Agora é só colar na conversa com o suporte (por exemplo, no WhatsApp).",
+                NuvoraTheme.typography.caption,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
 }
 
 /**
@@ -242,6 +307,7 @@ fun AddSourceScreen(
                     NuvoraText("Pronto! ${formatCount(current.count)} itens encontrados.", NuvoraTheme.typography.title, color = colors.accent)
                     NuvoraText("A sua lista já aparece no Início.", NuvoraTheme.typography.body, color = colors.textSecondary)
                     NuvoraButton(text = "Ir para o Início", icon = NuvoraIcons.Home, onClick = onFinished)
+                    current.report?.let { ReportPanel(it) }
                     return@Column
                 }
                 else -> Unit
@@ -290,8 +356,9 @@ fun AddSourceScreen(
                     label = "Provedor",
                     placeholder = "http://exemplo.com:8080",
                     keyboardType = KeyboardType.Uri,
+                    exact = true,
                 )
-                NuvoraTextField(value = user, onValueChange = { user = it; formError = null }, label = "Usuário", placeholder = "Usuário")
+                NuvoraTextField(value = user, onValueChange = { user = it; formError = null }, label = "Usuário", placeholder = "Usuário", exact = true)
                 NuvoraTextField(
                     value = password,
                     onValueChange = { password = it; formError = null },
@@ -311,6 +378,7 @@ fun AddSourceScreen(
                     label = "Link da lista",
                     placeholder = "http://...",
                     keyboardType = KeyboardType.Uri,
+                    exact = true,
                 )
             } else {
                 NuvoraButton(
@@ -324,9 +392,13 @@ fun AddSourceScreen(
             formError?.let { NuvoraText(it, NuvoraTheme.typography.body, color = colors.error) }
             (status as? SaveStatus.Failed)?.let {
                 NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error)
+                it.report?.problem?.let { problem ->
+                    NuvoraText("Tipo do problema: ${problem.label}", NuvoraTheme.typography.caption, color = colors.textPrimary)
+                }
                 it.detail?.let { detail ->
                     NuvoraText("Detalhe técnico: $detail", NuvoraTheme.typography.caption, color = colors.textSecondary)
                 }
+                it.report?.let { report -> ReportPanel(report) }
             }
             if (status == SaveStatus.Working) {
                 NuvoraText(
@@ -371,8 +443,8 @@ fun AddSourceScreen(
                                 else -> onSaveFile(name, Uri.parse(fileUri), onProgress)
                             }
                             status = when (result) {
-                                is ImportResult.Success -> SaveStatus.Done(result.itemCount)
-                                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail)
+                                is ImportResult.Success -> SaveStatus.Done(result.itemCount, result.report)
+                                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail, result.report)
                             }
                         }
                     },

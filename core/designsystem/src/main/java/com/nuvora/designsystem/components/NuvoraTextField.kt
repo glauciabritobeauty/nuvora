@@ -30,6 +30,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -51,6 +52,8 @@ fun NuvoraTextField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     secret: Boolean = false,
+    /** Texto que precisa ficar exatamente como foi digitado (usuário, senha, endereço): sem corretor nem maiúscula automática. */
+    exact: Boolean = false,
     /** Na TV, permite colocar o foco do controle neste campo (ex.: primeiro campo de um formulário). */
     tvFocusRequester: FocusRequester? = null,
 ) {
@@ -75,7 +78,12 @@ fun NuvoraTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, showKeyboardOnFocus = !isTv),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = if (secret) KeyboardType.Password else keyboardType,
+                    showKeyboardOnFocus = !isTv,
+                    autoCorrectEnabled = if (exact || secret) false else null,
+                    capitalization = if (exact || secret) KeyboardCapitalization.None else KeyboardCapitalization.Unspecified,
+                ),
                 visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
                 textStyle = NuvoraTheme.typography.body.copy(color = colors.textPrimary),
                 cursorBrush = SolidColor(colors.accent),
