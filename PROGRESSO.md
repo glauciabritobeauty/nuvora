@@ -428,3 +428,25 @@ nenhuma função removida.
   download de 17,5 MB a 8 Mega) só cai com a Fase B. Filme MP4 demorando ~8 s → investigar na Fase E.
   Fluidez da rolagem: o emulador da nuvem desenha por software (sem placa de vídeo), então a medição não é confiável
   (celular não registrou quadros; TV ~99% lentos nas duas versões). Fluidez real será conferida no aparelho da Glaucia.
+
+## Correção de rumo (31/10/2026): entrada, login com provedor e carregamento — diagnóstico, sem código ainda
+Pedido da Glaucia: tela de entrada inspirada no CasaTV (organização do lado direito), login com provedor funcionando de verdade, Home sem esperar a lista inteira. Visual do NUVORA preservado.
+
+Por que as correções anteriores não resolveram:
+- Login: só mudei mensagens e acrescentei o "detalhe técnico"; nunca vi uma resposta real do provedor dela. Os testes foram contra o servidor de teste, que segue o padrão Xtream clássico.
+- Carregamento: a Fase A foi só a compilação otimizada; a mudança de carregamento (Fase B) ainda não tinha sido feita. O código ainda baixa get_live_streams, get_vod_streams e get_series inteiros, numa única transação, antes de liberar o "Pronto!".
+
+Teste no servidor real dela, SEM usuário/senha (só dados falsos), em 31/10/2026:
+- O servidor NÃO é um painel Xtream clássico: é um intermediário (nginx/1.27.1) que responde em JSON próprio.
+- player_api.php com usuário/senha inválidos → HTTP 400 {"error":"Bad Request"} (o Xtream clássico responde 200 com auth=0). Sem parâmetros → HTTP 422.
+- get.php com dados inválidos → HTTP 404 (vira "Não encontramos a lista").
+- /live/x/y/1.m3u8 e xmltv.php → HTTP 400. Raiz → 307 para google.com. https não responde.
+- Conclusão: o NUVORA trata 400/422 como "erro genérico" e 404 como "não encontrado", então qualquer recusa desse servidor vira mensagem errada. A resposta com os dados verdadeiros só pode ser vista no aparelho dela.
+
+Plano aprovado aguardando "Pode avançar":
+1. Relatório de conexão no app (sem senha): cada passo, código HTTP, tipo e formato da resposta, redirecionamentos e tempo; a Glaucia copia e me envia.
+2. Login entende os formatos de erro desse servidor (400/422 JSON) e tenta o plano B (get.php) se o player_api falhar.
+3. Carregamento sob demanda no provedor: login → categorias (segundos) → itens de cada categoria só quando abrir/rolar, guardados no aparelho e atualizados em segundo plano; Home abre com o cache.
+4. Link M3U: ler enquanto baixa e gravar em lotes; Home liberada com os primeiros itens; o resto continua em segundo plano com aviso discreto.
+5. Nova tela de entrada: marca à esquerda e formulário à direita (TV/deitado), marca em cima no celular em pé; escolha do tipo por botões no topo do formulário; sem campo "Nome" (nome automático); botão "Entrar".
+6. Teste em emulador com um servidor que imita esse provedor (400/422/404) + provedor grande a 8 Mega; APK para ela confirmar no aparelho.
