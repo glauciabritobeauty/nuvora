@@ -75,6 +75,10 @@ internal fun createPlayer(
         }
 }
 
+/** O erro veio de um certificado de segurança (https) inválido? */
+internal fun Throwable.hasSslCause(): Boolean =
+    generateSequence(this) { it.cause }.take(10).any { it is javax.net.ssl.SSLException }
+
 /** Tipos de falha, cada um com uma mensagem amigável na tela. */
 internal enum class PlaybackFailure { Network, NotAvailable, Unsupported, Other }
 

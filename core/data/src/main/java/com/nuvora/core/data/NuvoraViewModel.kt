@@ -18,6 +18,7 @@ import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.data.security.CryptoBox
 import com.nuvora.core.data.settings.SettingsRepository
+import com.nuvora.core.data.sources.ImportProgress
 import com.nuvora.core.data.sources.ImportResult
 import com.nuvora.core.data.sources.SourceCatalog
 import com.nuvora.core.data.sources.SourceInfo
@@ -106,10 +107,10 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     // ---- Listas ----
 
-    suspend fun addLinkSource(name: String, url: String, onProgress: (Int) -> Unit): ImportResult =
+    suspend fun addLinkSource(name: String, url: String, onProgress: (ImportProgress) -> Unit): ImportResult =
         sourcesRepo.addLink(name, url, onProgress)
 
-    suspend fun addFileSource(name: String, uri: Uri, onProgress: (Int) -> Unit): ImportResult =
+    suspend fun addFileSource(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit): ImportResult =
         sourcesRepo.addFile(name, uri, onProgress)
 
     suspend fun refreshSource(id: Long): ImportResult = sourcesRepo.refresh(id)

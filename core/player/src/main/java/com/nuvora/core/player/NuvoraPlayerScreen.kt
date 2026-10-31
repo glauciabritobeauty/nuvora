@@ -153,6 +153,7 @@ fun NuvoraPlayerScreen(
     // Ouve o player e, ao sair da tela, salva a posição e libera tudo.
     DisposableEffect(player) {
         var checkedStart = false
+        var triedHttp = false
         var subtitlesDecided = false
         val listener = object : Player.Listener {
             override fun onEvents(p: Player, events: Player.Events) {
@@ -174,6 +175,20 @@ fun NuvoraPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // Certificado inválido no https: tenta o mesmo vídeo pelo http, do mesmo ponto, uma vez.
+                val url = request.url
+                if (!triedHttp && error.hasSslCause() && url.startsWith("https://", ignoreCase = true)) {
+                    triedHttp = true
+                    diag.log("certificado inválido no vídeo; tentando http")
+                    player.setMediaItem(
+                        androidx.media3.common.MediaItem.Builder().setUri("http://" + url.substring("https://".length))
+                            .apply { request.mimeType?.let(::setMimeType) }.build(),
+                        player.currentPosition,
+                    )
+                    player.prepare()
+                    player.play()
+                    return
+                }
                 failure.value = error.toFailure()
                 diag.log("falha=${failure.value}")
                 controlsVisible = false

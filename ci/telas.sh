@@ -433,6 +433,16 @@ else
   add_link "Limite" "http://10.0.2.2:8000/erro-456"
   wait_text "Detalhe técnico: HTTP 456" 30; shot 37-limite-de-conexoes
   check_text "O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor." sim
+  # Certificado inválido no https: o app tenta o http sozinho.
+  adb logcat -c
+  add_link "Certificado%sruim" "https://10.0.2.2/teste.m3u"
+  wait_text "Pronto! 4 itens encontrados." 40; shot 38-certificado-ruim
+  adb logcat -d -s NuvoraFontes:I | grep -i "certificado" | sed 's/.*NuvoraFontes: /  anotação: /' >> "$STEPS"
+  # Provedor que corta a conexão no meio: o app tenta de novo sozinho.
+  adb logcat -c
+  add_link "Corta%sno%smeio" "http://10.0.2.2:8000/corta.m3u"
+  wait_text "Pronto! 20.000 itens encontrados." 240; shot 39-corta-no-meio
+  adb logcat -d -s NuvoraFontes:I | grep -E "caiu|tentativa" | sed 's/.*NuvoraFontes: /  anotação: /' >> "$STEPS"
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

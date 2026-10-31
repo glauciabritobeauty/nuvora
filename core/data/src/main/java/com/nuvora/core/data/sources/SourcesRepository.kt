@@ -52,9 +52,17 @@ enum class ImportFailure(val message: String) {
     NotAList("Esse endereço não é uma lista de canais (.m3u). Confira o link."),
     Empty("A lista está vazia: não tem nenhum canal, filme ou série."),
     ServerError("O provedor está com problema agora. Tente de novo mais tarde."),
+    ConnectionDropped("A conexão com o provedor caiu no meio da lista, mesmo tentando de novo. Tente mais tarde; se continuar, fale com o seu fornecedor."),
+    InvalidCertificate("O certificado de segurança desse provedor é inválido. Fale com o seu fornecedor."),
     Limited("O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor."),
     FileUnreadable("Não foi possível abrir esse arquivo. Escolha a lista de novo."),
     Other("Não foi possível ler a lista. Tente de novo."),
+}
+
+/** Andamento: primeiro baixa a lista inteira, depois organiza no aparelho. */
+sealed interface ImportProgress {
+    data class Downloading(val bytes: Long) : ImportProgress
+    data class Reading(val items: Int) : ImportProgress
 }
 
 sealed interface ImportResult {
@@ -104,11 +112,13 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
 
     suspend fun load() = io { refreshSources() }
 
-    suspend fun addLink(name: String, url: String, onProgress: (Int) -> Unit = {}): ImportResult = io {
-        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) { openUrl(url.trim()) }
+    suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
+        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) {
+            downloadToCache(url.trim(), onProgress)
+        }
     }
 
-    suspend fun addFile(name: String, uri: Uri, onProgress: (Int) -> Unit = {}): ImportResult = io {
+    suspend fun addFile(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
         runCatching {
             appContext.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -119,7 +129,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     suspend fun refresh(id: Long): ImportResult = io {
         val (name, kind, address) = sourceAddress(id) ?: return@io ImportResult.Failure(ImportFailure.Other)
         importFrom(sourceId = id, name = name, kind = kind, address = address) {
-            if (kind == SourceKind.Link) openUrl(address) else openFile(Uri.parse(address))
+            if (kind == SourceKind.Link) downloadToCache(address) {} else openFile(Uri.parse(address))
         }
     }
 
@@ -205,7 +215,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         name: String,
         kind: SourceKind,
         address: String,
-        onProgress: (Int) -> Unit = {},
+        onProgress: (ImportProgress) -> Unit = {},
         open: () -> InputStream,
     ): ImportResult {
         val started = SystemClock.elapsedRealtime()
@@ -249,7 +259,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                     entry.group?.let { insert.bindString(5, it) }
                     insert.bindString(6, crypto.encrypt(entry.url))
                     insert.executeInsert()
-                    if (position % 2_000 == 0L) onProgress(position.toInt())
+                    if (position % 2_000 == 0L) onProgress(ImportProgress.Reading(position.toInt()))
                 }
             }
             if (summary.entries == 0) {
@@ -274,8 +284,50 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             return ImportResult.Failure(ImportFailure.Other, e.javaClass.simpleName)
         } finally {
             db.endTransaction()
+            tempFile().delete()
             refreshSources()
         }
+    }
+
+    private fun tempFile() = java.io.File(appContext.cacheDir, "lista-baixando.m3u")
+
+    /**
+     * Baixa a lista inteira para um arquivo temporário antes de organizar: assim a conexão com o provedor
+     * termina rápido (alguns cortam conexões longas). Se a conexão cair no meio, tenta de novo sozinho (até 3 vezes).
+     */
+    private fun downloadToCache(address: String, onProgress: (ImportProgress) -> Unit): InputStream {
+        val file = tempFile()
+        var lastError: IOException? = null
+        for (attempt in 1..3) {
+            try {
+                openUrl(address).use { input ->
+                    file.outputStream().buffered(256 * 1024).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        var lastReport = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            total += read
+                            if (total - lastReport >= 512 * 1024) {
+                                lastReport = total
+                                onProgress(ImportProgress.Downloading(total))
+                            }
+                        }
+                    }
+                }
+                if (debug && attempt > 1) Log.i("NuvoraFontes", "lista baixada na tentativa $attempt")
+                return file.inputStream()
+            } catch (definitive: ImportException) {
+                throw definitive // respostas claras do provedor (404, 403, limite...) não adiantam repetir
+            } catch (e: IOException) {
+                lastError = e
+                if (debug) Log.i("NuvoraFontes", "conexão caiu na tentativa $attempt: ${e.javaClass.simpleName}")
+                Thread.sleep(2_000L * attempt)
+            }
+        }
+        throw lastError ?: IOException("falha ao baixar")
     }
 
     private fun openUrl(address: String): InputStream {
@@ -288,7 +340,16 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                 instanceFollowRedirects = false
                 setRequestProperty("User-Agent", NUVORA_USER_AGENT)
             }
-            val code = connection.responseCode
+            val code = try {
+                connection.responseCode
+            } catch (e: javax.net.ssl.SSLException) {
+                // Certificado inválido no https: tenta o mesmo endereço pelo http (muitos provedores oferecem os dois).
+                connection.disconnect()
+                if (!current.startsWith("https://", ignoreCase = true)) throw e
+                if (debug) Log.i("NuvoraFontes", "certificado inválido; tentando http")
+                current = "http://" + current.substring("https://".length)
+                return@repeat
+            }
             when {
                 code in 200..299 -> return connection.inputStream
                 code in 300..399 -> {
@@ -315,6 +376,9 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         is UnknownHostException -> if (hasInternet()) ImportFailure.NotFound else ImportFailure.NoInternet
         is ConnectException, is SocketTimeoutException -> if (hasInternet()) ImportFailure.ServerError else ImportFailure.NoInternet
         is FileNotFoundException -> if (kind == SourceKind.File) ImportFailure.FileUnreadable else ImportFailure.NotFound
+        is javax.net.ssl.SSLException -> ImportFailure.InvalidCertificate
+        is java.net.SocketException, is java.io.EOFException, is java.net.ProtocolException ->
+            if (hasInternet()) ImportFailure.ConnectionDropped else ImportFailure.NoInternet
         else -> ImportFailure.Other
     }
 

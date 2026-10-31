@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nuvora.core.data.sources.ImportProgress
 import com.nuvora.core.data.sources.ImportResult
 import com.nuvora.core.data.sources.SourceInfo
 import com.nuvora.core.data.sources.SourceKind
@@ -61,6 +62,9 @@ import java.util.Locale
 private val ptBR = Locale("pt", "BR")
 
 internal fun formatCount(count: Int): String = NumberFormat.getIntegerInstance(ptBR).format(count)
+
+internal fun formatMegabytes(bytes: Long): String =
+    NumberFormat.getNumberInstance(ptBR).apply { maximumFractionDigits = 1 }.format(bytes / 1_048_576.0) + " MB"
 
 /** Bloco "Fontes de conteúdo" de Ajustes: listas cadastradas, atualizar, remover e adicionar. */
 @Composable
@@ -161,8 +165,8 @@ private sealed interface SaveStatus {
  */
 @Composable
 fun AddSourceScreen(
-    onSaveLink: suspend (name: String, url: String, onProgress: (Int) -> Unit) -> ImportResult,
-    onSaveFile: suspend (name: String, uri: Uri, onProgress: (Int) -> Unit) -> ImportResult,
+    onSaveLink: suspend (name: String, url: String, onProgress: (ImportProgress) -> Unit) -> ImportResult,
+    onSaveFile: suspend (name: String, uri: Uri, onProgress: (ImportProgress) -> Unit) -> ImportResult,
     onFinished: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -179,7 +183,7 @@ fun AddSourceScreen(
     var agreed by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf<SaveStatus>(SaveStatus.Idle) }
     var formError by remember { mutableStateOf<String?>(null) }
-    var progress by remember { mutableStateOf(0) }
+    var progress by remember { mutableStateOf<ImportProgress?>(null) }
     val firstField = remember { FocusRequester() }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -262,7 +266,11 @@ fun AddSourceScreen(
             }
             if (status == SaveStatus.Working) {
                 NuvoraText(
-                    if (progress == 0) "Lendo a lista... listas grandes podem levar alguns minutos." else "Lendo a lista... já li ${formatCount(progress)} itens.",
+                    when (val p = progress) {
+                        null -> "Conectando ao provedor... listas grandes podem levar alguns minutos."
+                        is ImportProgress.Downloading -> "Baixando a lista... ${formatMegabytes(p.bytes)}"
+                        is ImportProgress.Reading -> "Organizando a lista... já li ${formatCount(p.items)} itens."
+                    },
                     NuvoraTheme.typography.body,
                     color = colors.textSecondary,
                 )
@@ -279,9 +287,9 @@ fun AddSourceScreen(
                         }
                         if (formError != null) return@NuvoraButton
                         status = SaveStatus.Working
-                        progress = 0
+                        progress = null
                         scope.launch {
-                            val onProgress: (Int) -> Unit = { progress = it }
+                            val onProgress: (ImportProgress) -> Unit = { progress = it }
                             val result = if (kind == SourceKind.Link) {
                                 onSaveLink(name, link, onProgress)
                             } else {
