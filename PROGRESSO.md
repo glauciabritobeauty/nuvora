@@ -409,3 +409,22 @@ nenhuma função removida.
 - **Bloqueio:** o GitHub parou de rodar a nuvem ("pagamentos recentes falharam ou limite de gastos precisa ser aumentado"):
   os minutos grátis do mês da conta acabaram. Decisão da Glaucia pendente.
 - **31/10:** a Glaucia autorizou deixar o repositório PÚBLICO (minutos grátis). Voltar a privado antes de começar a vender. Conferido antes: nenhuma senha, link real ou chave no histórico.
+- **31/10 — Fase A concluída (aguardando teste da Glaucia no aparelho).** APK `apk/nuvora-0.9.0-otimizada.apk` (0.9.0, versionCode 14).
+  Testes de funcionamento (telas.sh) na versão otimizada: celular, tablet e TV OK, sem travamentos nem erros
+  (no celular, 24 toques no menu de baixo foram feitos pela posição — limitação conhecida da leitura de tela do emulador).
+  Medições (emulador, provedor grande 44.000 itens, 8 Mbit/s), antes (debug) → depois (otimizada):
+  | | celular | TV |
+  |---|---|---|
+  | APK | 16,8 → 2,4 MB | 16,8 → 2,4 MB |
+  | 1ª abertura (tela pronta) | 2,7 → 1,3 s | 2,5 → 1,3 s |
+  | abertura com conteúdo | 1,56 → 1,48 s | 1,82 → 1,53 s |
+  | login (autenticação) | 0,55 → 0,51 s | 0,09 → 0,07 s |
+  | baixar e organizar conteúdo | 22,0 → 20,5 s | 21,1 → 20,1 s |
+  | montar a Home (categorias) | 46 → 22 ms | 84 → 52 ms |
+  | memória na Home | 80 → 50 MB | 81 → 51 MB |
+  | 1º quadro do canal ao vivo | 4,3 → 2,2 s | 2,3 → 1,0 s |
+  | 1º quadro do filme (MP4) | 9,1 → 8,2 s | — |
+  Conclusões: a Fase A deixou o app menor, mais leve e abre/começa o canal mais rápido; a espera do conteúdo (~20 s, quase toda
+  download de 17,5 MB a 8 Mega) só cai com a Fase B. Filme MP4 demorando ~8 s → investigar na Fase E.
+  Fluidez da rolagem: o emulador da nuvem desenha por software (sem placa de vídeo), então a medição não é confiável
+  (celular não registrou quadros; TV ~99% lentos nas duas versões). Fluidez real será conferida no aparelho da Glaucia.
