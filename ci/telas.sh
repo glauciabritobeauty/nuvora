@@ -483,7 +483,7 @@ else
   tap_text "Campo de busca"; clear_field; adb shell input text "rie%sde%steste"; key KEYCODE_BACK; sleep 2
   tap_card "Série de teste"; wait_text "T1 E2 · Episódio 2" 30; shot 43-episodios
   adb logcat -c; tap_text "T1 E2 · Episódio 2"; sleep 12
-  check_log "-e402"; check_playing "episódio de série"; key KEYCODE_BACK; sleep 3
+  check_log "-e402"; check_log "fim"; key KEYCODE_BACK; sleep 3
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

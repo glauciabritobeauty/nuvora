@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -111,7 +112,10 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         return
     }
     // Primeira vez (nenhuma lista): boas-vindas em tela cheia, já pedindo o acesso.
-    if (state.home is HomeUiState.NoSource && !addingSource) {
+    // Continua na tela depois de salvar, até a pessoa ver "Pronto!" e tocar em "Ir para o Início".
+    var welcomeOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.home) { if (state.home is HomeUiState.NoSource) welcomeOpen = true }
+    if ((state.home is HomeUiState.NoSource || welcomeOpen) && !addingSource) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -122,12 +126,22 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 onSaveLink = viewModel::addLinkSource,
                 onSaveFile = viewModel::addFileSource,
                 onSaveProvider = viewModel::addProviderSource,
-                onFinished = { tab = Tab.Home },
+                onFinished = {
+                    welcomeOpen = false
+                    tab = Tab.Home
+                },
                 onBack = {},
                 welcome = true,
                 extraContent = {
                     if (DemoContent.AVAILABLE) {
-                        NuvoraButton(text = "Ver demonstração", style = NuvoraButtonStyle.Secondary, onClick = { viewModel.setDemo(true) })
+                        NuvoraButton(
+                            text = "Ver demonstração",
+                            style = NuvoraButtonStyle.Secondary,
+                            onClick = {
+                                welcomeOpen = false
+                                viewModel.setDemo(true)
+                            },
+                        )
                     }
                 },
             )
