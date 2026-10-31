@@ -60,6 +60,7 @@ jank() {
   fi
   sleep 2
   adb shell dumpsys gfxinfo "$PKG" > gfx.txt
+  cp gfx.txt "$OUT/$NAME-$ROTULO-gfxinfo.txt"
   med rolagem_quadros "$(grep -m1 'Total frames rendered' gfx.txt | awk '{print $4}')"
   med rolagem_quadros_lentos_pct "$(grep -m1 'Janky frames' gfx.txt | grep -oE '\([0-9.]+%\)' | tr -d '()%')"
   med rolagem_quadro_p90_ms "$(grep -m1 '90th percentile' gfx.txt | grep -oE '[0-9]+ms' | tr -d 'ms')"
@@ -100,7 +101,7 @@ adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 5
 adb logcat -c
 if [ "$NAME" = "tv" ]; then
   focus "boas-vindas"; focus_until "Provedor, usuário e senha" $U; focus_until "Provedor, usuário e senha" $D; key $OK; sleep 2
-  focus_until "Minha lista" $D; key $OK; sleep 1; adb shell input text "Grande"; key $BACK
+  # O nome é opcional (fica "Minha lista"); na TV vamos direto ao Provedor.
   focus_until "exemplo.com" $D; key $OK; sleep 1; adb shell input text "http://10.0.2.2:8800"; key $BACK
   focus_until "Usuário" $D; key $OK; sleep 1; adb shell input text "grande"; key $BACK
   focus_until "Senha" $D; key $OK; sleep 1; adb shell input text "1234"; key $BACK
