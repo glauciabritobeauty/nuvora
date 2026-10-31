@@ -214,8 +214,14 @@ EOF
   }
   U=KEYCODE_DPAD_UP; D=KEYCODE_DPAD_DOWN; L=KEYCODE_DPAD_LEFT; R=KEYCODE_DPAD_RIGHT; OK=KEYCODE_DPAD_CENTER; BACK=KEYCODE_BACK
 
-  focus "1. abertura sem fonte"
-  key $D; focus "2. seta baixo"
+  focus_until() {  # aperta a tecla $2 até o foco conter o texto $1 (até 10 vezes)
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      if echo "$LAST_FOCUS" | grep -qF "$1"; then return 0; fi
+      key "$2"; focus "  procurando '$1'"
+    done
+  }
+  focus "1. abertura sem fonte: boas-vindas (foco na 1ª opção)"
+  focus_until "Ver demonstração" $D; focus "2. desceu até Ver demonstração"
   key $OK; sleep 2; focus "3. OK em Ver demonstração"; shot 02-demonstracao
   key $R; key $OK; focus "4. direita + OK (Minha lista)"; shot 03-minha-lista
   key $D; key $R; key $R; focus "5. baixo + direita x2 (Continuar assistindo)"; shot 04-continuar
@@ -287,12 +293,6 @@ EOF
   echo "memória (KB): Home antes do player $MEM_ANTES; após 1ª saída $MEM_1; após 5ª saída $MEM_4" >> "$STEPS"
 
   # Etapa 7 (Parte 1): adicionar lista por link só com o controle.
-  focus_until() {  # aperta a tecla $2 até o foco conter o texto $1 (até 10 vezes)
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-      if echo "$LAST_FOCUS" | grep -qF "$1"; then return 0; fi
-      key "$2"; focus "  procurando '$1'"
-    done
-  }
   # Reabre o app (se um Voltar a mais tiver saído dele) e vai ao menu lateral, até Ajustes (último item).
   adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 3
   for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2

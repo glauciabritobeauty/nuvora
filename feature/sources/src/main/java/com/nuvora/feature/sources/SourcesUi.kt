@@ -54,6 +54,7 @@ import com.nuvora.designsystem.components.NuvoraButtonStyle
 import com.nuvora.designsystem.components.NuvoraClickable
 import com.nuvora.designsystem.components.NuvoraDialog
 import com.nuvora.designsystem.components.NuvoraIcon
+import com.nuvora.designsystem.components.NuvoraLogo
 import com.nuvora.designsystem.components.NuvoraText
 import com.nuvora.designsystem.components.NuvoraTextField
 import com.nuvora.designsystem.icons.NuvoraIcons
@@ -175,6 +176,10 @@ fun AddSourceScreen(
     onSaveProvider: suspend (name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit) -> ImportResult,
     onFinished: () -> Unit,
     onBack: () -> Unit,
+    /** Primeira vez no app: mostra as boas-vindas no lugar do "Voltar". */
+    welcome: Boolean = false,
+    /** Algo a mais embaixo das opções (ex.: botão de demonstração na versão de teste). */
+    extraContent: @Composable () -> Unit = {},
 ) {
     val colors = NuvoraTheme.colors
     val dimens = NuvoraTheme.dimens
@@ -205,7 +210,8 @@ fun AddSourceScreen(
         }
     }
 
-    BackHandler {
+    // Nas boas-vindas, Voltar na escolha inicial sai do app normalmente.
+    BackHandler(enabled = !(welcome && kind == null)) {
         if (kind != null && status !is SaveStatus.Done) kind = null else onBack()
     }
 
@@ -216,9 +222,19 @@ fun AddSourceScreen(
             .padding(horizontal = if (isTv) 32.dp else dimens.screenPaddingH, vertical = dimens.screenPaddingV),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NuvoraButton(text = "Voltar", icon = NuvoraIcons.ChevronLeft, style = NuvoraButtonStyle.Secondary, onClick = onBack)
-            NuvoraText("Adicionar lista", NuvoraTheme.typography.title)
+        if (welcome && kind == null) {
+            NuvoraLogo(Modifier.padding(top = 8.dp))
+            NuvoraText("Bem-vindo ao NUVORA!", NuvoraTheme.typography.display)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NuvoraButton(
+                    text = "Voltar",
+                    icon = NuvoraIcons.ChevronLeft,
+                    style = NuvoraButtonStyle.Secondary,
+                    onClick = { if (welcome && kind != null && status !is SaveStatus.Done) kind = null else onBack() },
+                )
+                NuvoraText("Adicionar lista", NuvoraTheme.typography.title)
+            }
         }
         Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when (val current = status) {
@@ -231,7 +247,10 @@ fun AddSourceScreen(
                 else -> Unit
             }
             if (kind == null) {
-                NuvoraText("Como você recebeu a sua lista?", NuvoraTheme.typography.section)
+                NuvoraText(
+                    if (welcome) "Como você recebeu o seu acesso?" else "Como você recebeu a sua lista?",
+                    NuvoraTheme.typography.section,
+                )
                 ChoiceButton(
                     NuvoraIcons.User,
                     "Provedor, usuário e senha",
@@ -245,6 +264,14 @@ fun AddSourceScreen(
                 if (!isTv) {
                     ChoiceButton(NuvoraIcons.File, "Arquivo do aparelho", "Um arquivo .m3u salvo no celular") { kind = SourceKind.File }
                 }
+                if (welcome) {
+                    NuvoraText(
+                        "Depois de salvar, o NUVORA já abre direto nos seus canais. Para trocar ou adicionar outra lista, vá em Ajustes.",
+                        NuvoraTheme.typography.caption,
+                        color = colors.textSecondary,
+                    )
+                }
+                extraContent()
                 return@Column
             }
             NuvoraTextField(

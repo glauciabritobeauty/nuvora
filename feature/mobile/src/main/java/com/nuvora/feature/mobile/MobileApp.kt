@@ -110,6 +110,30 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         )
         return
     }
+    // Primeira vez (nenhuma lista): boas-vindas em tela cheia, já pedindo o acesso.
+    if (state.home is HomeUiState.NoSource && !addingSource) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .windowInsetsPadding(WindowInsets.safeDrawing),
+        ) {
+            AddSourceScreen(
+                onSaveLink = viewModel::addLinkSource,
+                onSaveFile = viewModel::addFileSource,
+                onSaveProvider = viewModel::addProviderSource,
+                onFinished = { tab = Tab.Home },
+                onBack = {},
+                welcome = true,
+                extraContent = {
+                    if (DemoContent.AVAILABLE) {
+                        NuvoraButton(text = "Ver demonstração", style = NuvoraButtonStyle.Secondary, onClick = { viewModel.setDemo(true) })
+                    }
+                },
+            )
+        }
+        return
+    }
     val showOptions: (CardItem, HomeSection) -> Unit = { item, from ->
         options = ItemOptions(item, fromHistory = from != HomeSection.Favorites)
     }

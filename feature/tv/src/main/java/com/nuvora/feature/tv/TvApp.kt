@@ -23,6 +23,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nuvora.core.data.NuvoraViewModel
 import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
+import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.feature.sources.AddSourceScreen
@@ -30,6 +31,7 @@ import com.nuvora.feature.sources.EpisodesDialog
 import com.nuvora.feature.sources.SourcesSection
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
+import com.nuvora.designsystem.components.NuvoraButton
 import com.nuvora.designsystem.components.NuvoraButtonStyle
 import com.nuvora.designsystem.components.NuvoraDialog
 import com.nuvora.designsystem.components.TvSideMenu
@@ -99,6 +101,26 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
         return
     }
     val showOptions: (CardItem, Boolean) -> Unit = { item, fromHistory -> options = ItemOptions(item, fromHistory) }
+
+    // Primeira vez (nenhuma lista): boas-vindas em tela cheia, já pedindo o acesso.
+    if (state.home is HomeUiState.NoSource && !addingSource) {
+        Box(Modifier.fillMaxSize().background(colors.background)) {
+            AddSourceScreen(
+                onSaveLink = viewModel::addLinkSource,
+                onSaveFile = viewModel::addFileSource,
+                onSaveProvider = viewModel::addProviderSource,
+                onFinished = { tab = TvTab.Home },
+                onBack = {},
+                welcome = true,
+                extraContent = {
+                    if (DemoContent.AVAILABLE) {
+                        NuvoraButton(text = "Ver demonstração", style = NuvoraButtonStyle.Secondary, onClick = { viewModel.setDemo(true) })
+                    }
+                },
+            )
+        }
+        return
+    }
 
     BackHandler(enabled = !menuFocused || tab != TvTab.Home) {
         if (!menuFocused) {

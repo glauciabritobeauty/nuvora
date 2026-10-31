@@ -64,6 +64,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     private val sourcesRepo = SourcesRepository(application, CryptoBox(application))
     private val demoOn = MutableStateFlow(false)
     private val catalog = MutableStateFlow<SourceCatalog?>(null)
+    private val sourcesReady = MutableStateFlow(false)
 
     /** Preferência de legendas (Ajustes). */
     val subtitleMode: StateFlow<SubtitleMode> = settings.subtitleMode
@@ -89,7 +90,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     val playing: StateFlow<PlaybackRequest?> = _playing.asStateFlow()
 
     val state: StateFlow<AppUiState> = combine(
-        library.loaded,
+        combine(library.loaded, sourcesReady) { libraryLoaded, ready -> libraryLoaded && ready },
         demoOn,
         library.favorites,
         library.history,
@@ -102,7 +103,10 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             sourcesRepo.load()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
-            sourcesRepo.sources.collectLatest { list -> catalog.value = if (list.isEmpty()) null else sourcesRepo.loadCatalog() }
+            sourcesRepo.sources.collectLatest { list ->
+                catalog.value = if (list.isEmpty()) null else sourcesRepo.loadCatalog()
+                sourcesReady.value = true
+            }
         }
     }
 
