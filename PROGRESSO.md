@@ -11,7 +11,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 
 ## Onde paramos (30/10/2026, noite)
 - Etapa 7 — **Parte 1 entregue** (listas M3U por link e arquivo). Falta a Glaucia aprovar a Parte 1 para começar a Parte 2 (Provedor/Usuário/Senha + QR Code na TV).
-- APK: `apk/nuvora-etapa7-parte1c.apk` (com as correções para provedores). Parte 2 iniciada em 31/10/2026 com autorização ("sim").
+- APK: `apk/nuvora-etapa7-parte2a.apk` — Parte 2 em andamento: Provedor/Usuário/Senha e boas-vindas prontos e testados; falta o QR Code na TV.
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -289,6 +289,23 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 - **Correção depois do teste real da Glaucia (31/10/2026):** um link real do tipo `get.php?username=...&password=...&type=m3u_plus` deu "Não foi possível ler a lista". O link não foi aberto por mim (fonte não verificada como autorizada; contém senha). Correções: o app se apresenta como navegador (lista e player); espera até 2 min pela resposta; entende códigos de limite de conexões/assinatura (429, 456, 458, 509, 884); mostra "Detalhe técnico" (ex.: HTTP 456) embaixo do erro; mostra o andamento ("já li N itens"); nunca fecha por causa de lista estranha; player segue redirecionamento http→https. Testes com servidor que imita provedores: lento (45 s), exige navegador, redireciona, limite 456, link inexistente (404) — **todos OK** no celular e tablet. Aguardando a Glaucia testar de novo e, se falhar, mandar o "Detalhe técnico".
 - **2º teste real (31/10/2026):** "SSLPeerUnverifiedException" (certificado do https do provedor inválido) e, pelo http, "SocketException" (provedor cortou a conexão no meio). Correções: (1) se o certificado do https for inválido, o app tenta o mesmo endereço pelo http sozinho — na lista e no vídeo (autorizado pela Glaucia: "sim"; risco explicado: sem criptografia com aquele provedor; o app continua recusando certificado falso no https); (2) a lista é baixada inteira para um arquivo temporário antes de organizar, mostrando "Baixando a lista... X MB", com até 3 tentativas se a conexão cair. Testes com servidor imitando certificado inválido (https real com certificado de outro site) e corte da conexão no meio 2 vezes: **OK** (entrou na 3ª tentativa).
 - Pendências: o título "Adicionados recentemente" não faz sentido para listas — trocar por "Da sua lista" (pequeno, pedir ok); TV ao sair do player às vezes sem foco; acessibilidade da faixa inferior.
+
+---
+
+## ETAPA 7 — Parte 2 (em andamento)
+
+### Feito e testado (31/10/2026)
+- **Provedor, Usuário e Senha** (padrão de mercado conhecido como "Xtream", o "Login with Xtream Codes API" de apps como o VU que a Glaucia usava): confere o acesso (`player_api.php`) e busca canais, filmes e séries em pedidos separados (mais leve e confiável que uma lista gigante), lendo as respostas aos poucos. Itens agrupados como "TV · …", "Filmes · …", "Séries · …". Dados de acesso cifrados no cofre.
+- Mensagens: "Usuário ou senha incorretos", "A sua assinatura venceu" (com a data no detalhe técnico), "Esse endereço não respondeu como um provedor".
+- Colar o link completo (get.php?username=…&password=…) no campo Provedor: o app separa Provedor/Usuário/Senha ao tocar em "Testar e salvar" (3 testes automáticos).
+- **Séries:** ao abrir uma série, aparece a janela "Escolha o episódio" (T1 E1 · …); o episódio toca e entra no histórico/continuar assistindo.
+- **Boas-vindas (pedido da Glaucia, "pode"):** na 1ª vez o app abre em "Bem-vindo ao NUVORA! Como você recebeu o seu acesso?" com Provedor/usuário/senha, Link da lista e Arquivo (só celular); fica até "Pronto! N itens" → "Ir para o Início"; depois sempre abre direto na Home. Trocar/adicionar lista continua em Ajustes. Defeito achado e corrigido: ao salvar, a tela pulava para Ajustes.
+- TV: foco começa na primeira opção ao adicionar lista.
+- Testes (servidor que imita um provedor Xtream): senha errada, assinatura vencida, login certo ("Pronto! 5 itens"), canal ao vivo tocando, série → escolher episódio → tocar até o fim. Celular, tablet e TV: **0 falhas** na rodada final (154/178/14 verificações OK).
+- Base técnica: o formato Xtream não tem documentação oficial; foi implementado pelo padrão público amplamente usado e testado só contra o servidor de teste. **Falta testar com um provedor real.**
+
+### Falta
+- QR Code na TV para digitar os dados pelo celular (autorizado).
 
 ---
 
