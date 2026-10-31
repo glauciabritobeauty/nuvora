@@ -14,6 +14,7 @@ android {
         // Versão de teste otimizada: código de versão final, mas com a demonstração da versão de teste.
         create("otimizada") {
             initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
         }
     }
     sourceSets {
