@@ -374,3 +374,18 @@ Nenhum teste de aplicativo foi executado ainda (não há código).
 8. Testar o APK da Etapa 2 no celular, tablet e TV reais e aprovar (ou pedir ajustes) no visual.
 9. Identificador do app (`com.nuvora.app`) — pode ser trocado agora sem custo; depois de publicado na Play Store fica permanente.
 6. ~~Vídeos públicos de teste~~ — autorizado em 31/10/2026. (Texto original: autorizar o uso de vídeos públicos de teste (ex.: os exemplos oficiais de HLS/DASH do Google), sempre identificados como "Conteúdo de teste".
+
+## Diagnóstico de desempenho (31/10/2026) — aguardando aprovação, nada alterado ainda
+Pedido da Glaucia: manter 100% o visual do NUVORA e chegar na rapidez do CasaTV (≈8 MB, roda bem com internet de 8 Mega).
+
+Causas encontradas no código (por ordem de impacto):
+1. **Provedor: baixa tudo antes de mostrar qualquer coisa.** `XtreamClient.importAll` baixa a lista completa de canais, filmes e séries (provedores grandes: dezenas de MB) antes de abrir a Home. Com 8 Mega (~1 MB/s) isso leva minutos. Apps leves fazem login (resposta pequena), mostram as categorias e só carregam os itens da categoria aberta.
+2. **APKs de teste são "debug"** (16,8 MB, sem R8, depuráveis, sem Baseline Profile). Compose em debug é várias vezes mais lento, principalmente em TV fraca. A versão final (release + R8 + Baseline Profile) deve ficar perto de 6–9 MB e bem mais fluida.
+3. **Cifra item por item.** Cada endereço de canal/filme é cifrado separadamente na importação (dezenas de milhares de operações). No provedor, o certo é guardar só o número do canal e cifrar o login uma vez.
+4. **Tudo numa transação só:** a Home só aparece no fim. Dá para gravar em lotes e mostrar a Home com as primeiras categorias enquanto o resto chega.
+5. **Home faz varredura da tabela inteira a cada abertura** (`loadCatalog` com GROUP BY em todos os itens). Falta índice composto e uma tabela de categorias pronta.
+6. **Player:** itens de lista vão sem tipo (mimeType nulo) — endereços sem extensão podem demorar ou falhar; não há reaproveitamento do player para trocar de canal.
+7. **Erro do provedor real:** "não encontramos a lista" no modo provedor é mensagem errada; falta plano B (get.php com o mesmo usuário/senha) e falha rápida (timeouts de 20 s/120 s e 3 tentativas com espera).
+Observação: muitos apps como o CasaTV vêm com o servidor do revendedor já embutido (por isso pedem só usuário e senha) — hipótese, não verificada.
+
+Plano proposto (visual intocado): A) versão de teste otimizada (release + R8 + Baseline Profile); B) provedor sob demanda (login → categorias → itens por categoria, cache e atualização em segundo plano, plano B get.php, mensagens certas); C) lista por link progressiva e enxuta; D) Home instantânea (índices, categorias prontas, última Home guardada); E) player mais rápido (tipo do vídeo, buffer de ao vivo, troca de canal sem recriar); F) medição com provedor grande simulado e internet limitada a 8 Mega no emulador.
