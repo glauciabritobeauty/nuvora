@@ -17,13 +17,19 @@ android {
             matchingFallbacks += listOf("release")
         }
     }
-    sourceSets {
-        getByName("otimizada").java.srcDir("src/debug/java")
-    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+// A versão otimizada usa a mesma demonstração da versão de teste (pasta src/debug).
+androidComponents {
+    onVariants(selector().withBuildType("otimizada")) { variant ->
+        val kotlin = variant.sources.kotlin
+        if (kotlin != null) kotlin.addStaticSourceDirectory("src/debug/java")
+        else variant.sources.java?.addStaticSourceDirectory("src/debug/java")
     }
 }
 
