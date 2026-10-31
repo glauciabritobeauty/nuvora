@@ -408,3 +408,4 @@ nenhuma função removida.
   Testes de funcionamento da versão otimizada ainda NÃO rodaram pelo mesmo motivo. APK ainda não entregue.
 - **Bloqueio:** o GitHub parou de rodar a nuvem ("pagamentos recentes falharam ou limite de gastos precisa ser aumentado"):
   os minutos grátis do mês da conta acabaram. Decisão da Glaucia pendente.
+- **31/10:** a Glaucia autorizou deixar o repositório PÚBLICO (minutos grátis). Voltar a privado antes de começar a vender. Conferido antes: nenhuma senha, link real ou chave no histórico.
