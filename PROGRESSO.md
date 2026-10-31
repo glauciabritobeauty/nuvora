@@ -450,3 +450,24 @@ Plano aprovado aguardando "Pode avançar":
 4. Link M3U: ler enquanto baixa e gravar em lotes; Home liberada com os primeiros itens; o resto continua em segundo plano com aviso discreto.
 5. Nova tela de entrada: marca à esquerda e formulário à direita (TV/deitado), marca em cima no celular em pé; escolha do tipo por botões no topo do formulário; sem campo "Nome" (nome automático); botão "Entrar".
 6. Teste em emulador com um servidor que imita esse provedor (400/422/404) + provedor grande a 8 Mega; APK para ela confirmar no aparelho.
+
+## Etapa 1 da correção: login com provedor + relatório de conexão (v0.9.1) — concluída nos testes, aguardando teste no aparelho
+Versão de segurança: tag `seguranca-0.9.0-antes-login` + `apk/seguranca/nuvora-0.9.0-otimizada.apk`.
+
+Alterado:
+- Relatório de conexão (ConnectionReport.kt): cada pedido (endereço com usuário/senha/tokens trocados por •••), código HTTP, tipo, tamanho, tempo, formato do conteúdo (só campos não pessoais), tipo do problema e conclusão. Botões "Ver relatório de conexão" e "Copiar relatório". Testes automáticos garantem que usuário e senha não aparecem.
+- Tipos de problema separados: Rede, Autenticação, Formato do pedido, Resposta do servidor, Carregamento da lista.
+- Login (XtreamClient.connect): 1) player_api; 2) se 400/405/422, o mesmo em POST; 3) plano B get.php (m3u_plus/hls e m3u_plus). Se a lista vier, usuário e senha estão certos e a lista é importada pelo link.
+- Erros novos: ServerNotFound, NotRecognized (400/422 + 404 → autenticação provável), RequestRejected.
+- Campos de usuário/senha/endereço sem corretor automático e sem maiúscula automática; espaços no começo/fim removidos (causa comum de "senha errada" no celular).
+- Nome da lista automático (endereço do provedor) se ficar vazio.
+- TV: a mensagem de resultado aparece na tela e o foco vai para o botão logo abaixo; o relatório rola com as setas.
+- Recursos do provedor: o relatório diz se o provedor aceita pedir canais de uma categoria só (base da etapa 2).
+
+Testes (CI, emulador, APK otimizada 0.9.1), servidor `ci/provedor_intermediario.py` que responde igual ao provedor real (422/400 "Bad Request", get.php 404, raiz 307, "nginx/1.27.1"):
+- Celular: 45 ok, 0 falhas. TV: 20 ok, 0 falhas. 0 erros registrados.
+- Cenário 1 (dados não reconhecidos): mensagem certa, "Autenticação", relatório com 5 passos, senha/usuário fora da tela e das anotações.
+- Cenário 2 (só get.php funciona): 25 itens, Home com categorias, canal tocando (vídeo andou).
+- Cenário 3 (padrão funciona): 25 itens, consulta por categoria "aceita" (5 de 20), Home, canal tocando.
+- Regressão (telas.sh): celular/tablet/TV sem travar e sem erros; celular com as 24 falhas conhecidas do menu de baixo (recuperadas pela posição).
+Ainda não verificado: o provedor real com os dados verdadeiros (só no aparelho da Glaucia, pelo relatório).
