@@ -123,7 +123,16 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     private val _sources = MutableStateFlow<List<SourceInfo>>(emptyList())
     val sources: StateFlow<List<SourceInfo>> = _sources.asStateFlow()
 
-    suspend fun load() = io { refreshSources() }
+    private val prefs = appContext.getSharedPreferences("fontes", Context.MODE_PRIVATE)
+    private val _savedServer = MutableStateFlow<String?>(null)
+
+    /** Servidor (DNS) do último login que deu certo: na próxima vez, basta usuário e senha. Guardado cifrado. */
+    val savedServer: StateFlow<String?> = _savedServer.asStateFlow()
+
+    suspend fun load() = io {
+        refreshSources()
+        _savedServer.value = prefs.getString("servidor_cifrado", null)?.let { runCatching { crypto.decrypt(it) }.getOrNull() }
+    }
 
     suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
         importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) { emit ->
@@ -146,6 +155,11 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         val providerName = name.trim().ifEmpty { runCatching { java.net.URI(clean.server).host }.getOrNull().orEmpty() }
         importFrom(sourceId = null, name = providerName, kind = SourceKind.Provider, address = encodeLogin(clean), onProgress = onProgress, report = report) { emit ->
             importProvider(clean, report, onProgress, emit)
+        }.also { result ->
+            if (result is ImportResult.Success) {
+                prefs.edit().putString("servidor_cifrado", crypto.encrypt(clean.server)).apply()
+                _savedServer.value = clean.server
+            }
         }
     }
 

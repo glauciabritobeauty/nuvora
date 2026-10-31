@@ -79,6 +79,9 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** Listas cadastradas (Ajustes > Fontes de conteúdo). */
     val sources: StateFlow<List<SourceInfo>> = sourcesRepo.sources
 
+    /** Servidor (DNS) do último login que deu certo (null = nenhum ainda). */
+    val savedServer: StateFlow<String?> = sourcesRepo.savedServer
+
     private val _episodes = MutableStateFlow<SeriesEpisodes?>(null)
 
     /** Série aberta esperando a pessoa escolher o episódio (null = nenhuma). */

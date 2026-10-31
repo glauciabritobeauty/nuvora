@@ -23,7 +23,7 @@ sleep 6
 shot 01-inicio
 
 if [ "$NAME" = "tv" ]; then
-  focus "1. abertura sem fonte: boas-vindas (foco na 1ª opção)"
+  focus "1. abertura sem fonte: entrada (foco no campo Usuário)"
   focus_until "Ver demonstração" $D; focus "2. desceu até Ver demonstração"
   key $OK; sleep 2; focus "3. OK em Ver demonstração"; shot 02-demonstracao
   key $R; key $OK; focus "4. direita + OK (Minha lista)"; shot 03-minha-lista
@@ -99,19 +99,14 @@ if [ "$NAME" = "tv" ]; then
   # Reabre o app (se um Voltar a mais tiver saído dele). Sem lista, ele abre nas boas-vindas (que já são o cadastro).
   adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 4
   read_ui
-  if grep -q 'Bem-vindo ao NUVORA' ui.xml; then
-    focus "31. boas-vindas na TV"; focus_until "Link da lista" $U; focus_until "Link da lista" $D
+  if grep -qF 'Entre com seu usuário e senha' ui.xml; then
+    focus "31. entrada na TV (sem lista)"
   else
     for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
     key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $U; key $OK; sleep 2
-    focus "33. tela Adicionar lista"; focus_until "Link da lista" $D
+    focus "33. tela de entrada"
   fi
-  key $OK; sleep 2
-  focus "34. foco no primeiro campo"; focus_until "Minha lista" $D
-  key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
-  focus_until "http://" $D; key $OK; sleep 2; adb shell input text "http://10.0.2.2:8000/teste.m3u"; key $BACK
-  focus_until "Tenho direito" $D; key $OK
-  focus_until "Testar e salvar" $D; key $OK
+  link_form "http://10.0.2.2:8000/teste.m3u"
   wait_text "Pronto! 4 itens encontrados." 30; shot 20-lista-adicionada-tv
   focus_until "Ir para o Início" $D; key $OK; sleep 3
   check_text "Filmes de teste" sim; shot 21-home-com-lista-tv
@@ -209,14 +204,14 @@ else
   # Sem nenhuma lista, o app mostra as boas-vindas (já é o cadastro); senão, vai por Ajustes > Adicionar lista.
   open_add() {
     read_ui
-    if grep -q 'Bem-vindo ao NUVORA' ui.xml; then echo "  (boas-vindas na tela)" >> "$STEPS"; else tap_tab "Ajustes" 5; tap_text "Adicionar lista"; fi
+    if grep -qF 'Entre com seu usuário e senha' ui.xml && ! grep -qF 'text="Voltar"' ui.xml; then
+      echo "  (entrada na tela: ainda sem lista)" >> "$STEPS"
+    else
+      tap_tab "Ajustes" 5; tap_text "Adicionar lista"
+    fi
   }
   add_link() {
-    open_add; tap_text "Link da lista"
-    tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
-    tap_text "http://..."; adb shell input text "$2"; key KEYCODE_BACK
-    tap_text "Tenho direito de acesso a este conteúdo."
-    tap_text "Testar e salvar"
+    open_add; link_form "$2"
   }
   add_link "Lista%sde%steste" "http://10.0.2.2:8000/teste.m3u"
   wait_text "Pronto! 4 itens encontrados." 30; shot 30-lista-adicionada
@@ -261,15 +256,7 @@ else
 
   # Etapa 7 (Parte 2): Provedor, Usuário e Senha.
   add_provider() {
-    open_add; tap_text "Provedor, usuário e senha"
-    tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
-    tap_text "http://exemplo.com:8080"; adb shell input text "$2"; key KEYCODE_BACK
-    if [ -n "${3:-}" ]; then
-      tap_text "Usuário"; adb shell input text "$3"; key KEYCODE_BACK
-      tap_text "Senha"; adb shell input text "$4"; key KEYCODE_BACK
-    fi
-    tap_text "Tenho direito de acesso a este conteúdo."
-    tap_text "Testar e salvar"
+    open_add; login_form "$2" "$3" "$4"
   }
   add_provider "Senha%serrada" "http://10.0.2.2:8000" "teste" "0000"
   wait_text "Usuário ou senha incorretos. Confira e tente de novo." 30; shot 40-senha-errada

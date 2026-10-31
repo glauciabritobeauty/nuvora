@@ -44,6 +44,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.nuvora.core.data.SeriesEpisodes
 import com.nuvora.core.data.sources.ConnectionReport
@@ -244,9 +248,14 @@ private fun ReportPanel(report: ConnectionReport, buttonFocus: FocusRequester? =
     }
 }
 
+/** Jeitos de entrar: o principal (usuário e senha) e os alternativos, discretos. */
+private enum class EntryMode { Login, Link, File }
+
 /**
- * Tela "Adicionar lista": link ou arquivo, nome, confirmação de direito de acesso e "Testar e salvar".
- * Na TV só aparece o link (TVs normalmente não têm onde escolher arquivos).
+ * Tela de entrada (boas-vindas) e "Adicionar lista" de Ajustes.
+ * O principal vem direto: usuário, senha e ENTRAR. O servidor (DNS) é uma opção que abre quando precisa
+ * (e fica salvo depois do 1º login que dá certo). Link e arquivo M3U ficam numa linha discreta embaixo.
+ * Em telas deitadas (TV, celular deitado, tablet) a marca fica à esquerda e o formulário à direita.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -256,32 +265,46 @@ fun AddSourceScreen(
     onSaveProvider: suspend (name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit) -> ImportResult,
     onFinished: () -> Unit,
     onBack: () -> Unit,
-    /** Primeira vez no app: mostra as boas-vindas no lugar do "Voltar". */
+    /** Primeira vez no app: sem o botão "Voltar". */
     welcome: Boolean = false,
-    /** Algo a mais embaixo das opções (ex.: botão de demonstração na versão de teste). */
+    /** Servidor (DNS) do último login que deu certo, para não pedir de novo. */
+    savedServer: String? = null,
+    /** Algo a mais embaixo de tudo (ex.: botão de demonstração na versão de teste). */
     extraContent: @Composable () -> Unit = {},
 ) {
     val colors = NuvoraTheme.colors
-    val dimens = NuvoraTheme.dimens
     val isTv = NuvoraTheme.isTv
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var kind by rememberSaveable { mutableStateOf<SourceKind?>(null) }
-    var name by rememberSaveable { mutableStateOf("") }
-    var link by rememberSaveable { mutableStateOf("") }
-    var server by rememberSaveable { mutableStateOf("") }
+    var mode by rememberSaveable { mutableStateOf(EntryMode.Login) }
     var user by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var server by rememberSaveable { mutableStateOf(savedServer.orEmpty()) }
+    var showServer by rememberSaveable { mutableStateOf(false) }
+    var link by rememberSaveable { mutableStateOf("") }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf<String?>(null) }
-    var agreed by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf<SaveStatus>(SaveStatus.Idle) }
     var formError by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf<ImportProgress?>(null) }
-    val firstField = remember { FocusRequester() }
-    val firstChoice = remember { FocusRequester() }
+    val userFocus = remember { FocusRequester() }
+    val serverFocus = remember { FocusRequester() }
+    val linkFocus = remember { FocusRequester() }
     val resultFocus = remember { FocusRequester() }
     val resultView = remember { BringIntoViewRequester() }
+    // O servidor salvo pode chegar depois da tela abrir.
+    LaunchedEffect(savedServer) { if (server.isBlank() && savedServer != null) server = savedServer }
+    // Na TV o foco do controle já começa no primeiro campo de cada jeito de entrar.
+    LaunchedEffect(mode) {
+        if (isTv) runCatching { (if (mode == EntryMode.Login) userFocus else linkFocus).requestFocus() }
+    }
+    // O campo do servidor recebe o foco assim que aparece (tocou em "Usar outro servidor" ou faltou preenchê-lo).
+    LaunchedEffect(showServer) {
+        if (showServer) {
+            kotlinx.coroutines.delay(50)
+            runCatching { serverFocus.requestFocus() }
+        }
+    }
     // Quando o resultado chega, ele aparece na tela (e na TV o foco vai para o botão logo abaixo da mensagem).
     LaunchedEffect(status) {
         if (status is SaveStatus.Done || status is SaveStatus.Failed) {
@@ -295,124 +318,154 @@ fun AddSourceScreen(
             fileUri = uri.toString()
             fileName = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "Arquivo escolhido"
-            if (name.isBlank()) name = fileName.orEmpty().substringBeforeLast('.')
+            formError = null
         }
     }
 
-    // Nas boas-vindas, Voltar na escolha inicial sai do app normalmente.
-    BackHandler(enabled = !(welcome && kind == null)) {
-        if (kind != null && status !is SaveStatus.Done) kind = null else onBack()
-    }
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = if (isTv) 32.dp else dimens.screenPaddingH, vertical = dimens.screenPaddingV),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        if (welcome && kind == null) {
-            NuvoraLogo(Modifier.padding(top = 8.dp))
-            NuvoraText("Bem-vindo ao NUVORA!", NuvoraTheme.typography.display)
+    // Voltar: de link/arquivo volta para o login; do login sai (nas boas-vindas, sai do app normalmente).
+    BackHandler(enabled = mode != EntryMode.Login || !welcome) {
+        if (mode != EntryMode.Login && status !is SaveStatus.Done) {
+            mode = EntryMode.Login
+            formError = null
+            status = SaveStatus.Idle
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NuvoraButton(
-                    text = "Voltar",
-                    icon = NuvoraIcons.ChevronLeft,
-                    style = NuvoraButtonStyle.Secondary,
-                    onClick = { if (welcome && kind != null && status !is SaveStatus.Done) kind = null else onBack() },
-                )
-                NuvoraText("Adicionar lista", NuvoraTheme.typography.title)
+            onBack()
+        }
+    }
+
+    fun submit() {
+        if (status == SaveStatus.Working) return
+        // Colou o link completo (com usuário e senha dentro) em qualquer campo? Separa tudo sozinho.
+        if (mode == EntryMode.Login) {
+            (parseProviderLink(user) ?: parseProviderLink(server))?.let { parsed ->
+                server = parsed.server
+                user = parsed.user
+                password = parsed.password
+                showServer = true
             }
         }
-        Column(Modifier.widthIn(max = 640.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            when (val current = status) {
-                is SaveStatus.Done -> {
-                    NuvoraText("Pronto! ${formatCount(current.count)} itens encontrados.", NuvoraTheme.typography.title, color = colors.accent)
-                    NuvoraText("A sua lista já aparece no Início.", NuvoraTheme.typography.body, color = colors.textSecondary)
-                    NuvoraButton(text = "Ir para o Início", icon = NuvoraIcons.Home, onClick = onFinished, modifier = Modifier.focusRequester(resultFocus))
-                    current.report?.let { ReportPanel(it) }
-                    return@Column
+        formError = when (mode) {
+            EntryMode.Login -> when {
+                user.isBlank() -> "Digite o seu usuário."
+                password.isBlank() -> "Digite a sua senha."
+                server.isBlank() -> {
+                    showServer = true
+                    "Falta o servidor (DNS): é o endereço que o seu fornecedor mandou junto com o usuário e a senha."
                 }
-                else -> Unit
+                else -> null
             }
-            if (kind == null) {
-                NuvoraText(
-                    if (welcome) "Como você recebeu o seu acesso?" else "Como você recebeu a sua lista?",
-                    NuvoraTheme.typography.section,
-                )
-                ChoiceButton(
-                    NuvoraIcons.User,
-                    "Provedor, usuário e senha",
-                    "Os dados de acesso que o fornecedor mandou",
-                    Modifier.focusRequester(firstChoice),
-                ) { kind = SourceKind.Provider }
-                // Na TV o foco do controle já começa na primeira opção.
-                LaunchedEffect(Unit) { if (isTv) runCatching { firstChoice.requestFocus() } }
-                ChoiceButton(NuvoraIcons.Link, "Link da lista", "Um endereço que começa com http") { kind = SourceKind.Link }
-                // TVs normalmente não têm onde escolher arquivos.
-                if (!isTv) {
-                    ChoiceButton(NuvoraIcons.File, "Arquivo do aparelho", "Um arquivo .m3u salvo no celular") { kind = SourceKind.File }
-                }
-                if (welcome) {
-                    NuvoraText(
-                        "Depois de salvar, o NUVORA já abre direto nos seus canais. Para trocar ou adicionar outra lista, vá em Ajustes.",
-                        NuvoraTheme.typography.caption,
-                        color = colors.textSecondary,
-                    )
-                }
-                extraContent()
+            EntryMode.Link -> if (!link.trim().startsWith("http", ignoreCase = true)) "Cole o link da lista (começa com http)." else null
+            EntryMode.File -> if (fileUri == null) "Escolha o arquivo da lista." else null
+        }
+        if (formError != null) return
+        status = SaveStatus.Working
+        progress = null
+        scope.launch {
+            val onProgress: (ImportProgress) -> Unit = { progress = it }
+            val result = when (mode) {
+                EntryMode.Login -> onSaveProvider("", ProviderLogin(server, user, password), onProgress)
+                EntryMode.Link -> onSaveLink(linkName(link), link, onProgress)
+                EntryMode.File -> onSaveFile(fileName.orEmpty().substringBeforeLast('.'), Uri.parse(fileUri), onProgress)
+            }
+            status = when (result) {
+                is ImportResult.Success -> SaveStatus.Done(result.itemCount, result.report)
+                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail, result.report)
+            }
+        }
+    }
+
+    val form: @Composable () -> Unit = {
+        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (isTv) 14.dp else 12.dp)) {
+            if (!welcome) {
+                NuvoraButton(text = "Voltar", icon = NuvoraIcons.ChevronLeft, style = NuvoraButtonStyle.Secondary, onClick = onBack)
+            }
+            val done = status as? SaveStatus.Done
+            if (done != null) {
+                NuvoraText("Pronto! ${formatCount(done.count)} itens encontrados.", NuvoraTheme.typography.title, color = colors.accent)
+                NuvoraText("A sua lista já aparece no Início.", NuvoraTheme.typography.body, color = colors.textSecondary)
+                EnterButton("Ir para o Início", onClick = onFinished, modifier = Modifier.focusRequester(resultFocus))
+                done.report?.let { ReportPanel(it) }
                 return@Column
             }
-            NuvoraTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "Nome da lista",
-                placeholder = "Minha lista",
-                tvFocusRequester = firstField,
-            )
-            // Na TV o foco do controle já começa no primeiro campo.
-            LaunchedEffect(kind) { if (isTv) runCatching { firstField.requestFocus() } }
-            if (kind == SourceKind.Provider) {
-                NuvoraTextField(
-                    value = server,
-                    onValueChange = { server = it; formError = null },
-                    label = "Provedor",
-                    placeholder = "http://exemplo.com:8080",
-                    keyboardType = KeyboardType.Uri,
-                    exact = true,
-                )
-                NuvoraTextField(value = user, onValueChange = { user = it; formError = null }, label = "Usuário", placeholder = "Usuário", exact = true)
-                NuvoraTextField(
-                    value = password,
-                    onValueChange = { password = it; formError = null },
-                    label = "Senha",
-                    placeholder = "Senha",
-                    secret = true,
-                )
-                NuvoraText(
-                    "Dica: se você recebeu um link com usuário e senha dentro, pode colar ele inteiro no campo Provedor.",
-                    NuvoraTheme.typography.caption,
-                    color = colors.textSecondary,
-                )
-            } else if (kind == SourceKind.Link) {
-                NuvoraTextField(
-                    value = link,
-                    onValueChange = { link = it; formError = null },
-                    label = "Link da lista",
-                    placeholder = "http://...",
-                    keyboardType = KeyboardType.Uri,
-                    exact = true,
-                )
-            } else {
-                NuvoraButton(
-                    text = fileName ?: "Escolher arquivo",
-                    icon = NuvoraIcons.File,
-                    style = NuvoraButtonStyle.Secondary,
-                    onClick = { pickFile.launch(arrayOf("*/*")) },
-                )
+            when (mode) {
+                EntryMode.Login -> {
+                    NuvoraText("Entre com seu usuário e senha", NuvoraTheme.typography.title)
+                    NuvoraText("Os dados que o seu fornecedor mandou.", NuvoraTheme.typography.body, color = colors.textSecondary)
+                    NuvoraTextField(
+                        value = user,
+                        onValueChange = { user = it; formError = null },
+                        label = "Usuário",
+                        placeholder = "Digite seu usuário",
+                        exact = true,
+                        labelInside = true,
+                        focusRequester = userFocus,
+                        imeAction = ImeAction.Next,
+                    )
+                    NuvoraTextField(
+                        value = password,
+                        onValueChange = { password = it; formError = null },
+                        label = "Senha",
+                        placeholder = "Digite sua senha",
+                        secret = true,
+                        revealToggle = true,
+                        labelInside = true,
+                        imeAction = if (showServer) ImeAction.Next else ImeAction.Go,
+                        onImeAction = ::submit,
+                    )
+                    if (showServer) {
+                        NuvoraTextField(
+                            value = server,
+                            onValueChange = { server = it; formError = null },
+                            label = "Servidor (DNS)",
+                            placeholder = "http://exemplo.com:8080",
+                            keyboardType = KeyboardType.Uri,
+                            exact = true,
+                            labelInside = true,
+                            focusRequester = serverFocus,
+                            imeAction = ImeAction.Go,
+                            onImeAction = ::submit,
+                        )
+                        NuvoraText(
+                            "Fica salvo: da próxima vez, só usuário e senha.",
+                            NuvoraTheme.typography.caption,
+                            color = colors.textSecondary,
+                        )
+                    } else {
+                        TextLink(
+                            if (server.isBlank()) "+ Usar outro servidor (DNS)" else "Servidor: ${serverLabel(server)} · Trocar",
+                            Modifier.align(Alignment.CenterHorizontally),
+                        ) {
+                            showServer = true
+                        }
+                    }
+                }
+                EntryMode.Link -> {
+                    NuvoraText("Entrar com o link da lista", NuvoraTheme.typography.title)
+                    NuvoraText("Um endereço que começa com http (lista M3U).", NuvoraTheme.typography.body, color = colors.textSecondary)
+                    NuvoraTextField(
+                        value = link,
+                        onValueChange = { link = it; formError = null },
+                        label = "Link da lista",
+                        placeholder = "http://...",
+                        keyboardType = KeyboardType.Uri,
+                        exact = true,
+                        labelInside = true,
+                        focusRequester = linkFocus,
+                        imeAction = ImeAction.Go,
+                        onImeAction = ::submit,
+                    )
+                }
+                EntryMode.File -> {
+                    NuvoraText("Entrar com um arquivo M3U", NuvoraTheme.typography.title)
+                    NuvoraText("Um arquivo .m3u salvo no celular.", NuvoraTheme.typography.body, color = colors.textSecondary)
+                    NuvoraButton(
+                        text = fileName ?: "Escolher arquivo",
+                        icon = NuvoraIcons.File,
+                        style = NuvoraButtonStyle.Secondary,
+                        onClick = { pickFile.launch(arrayOf("*/*")) },
+                    )
+                }
             }
-            RightsCheck(agreed) { agreed = !agreed; formError = null }
             formError?.let { NuvoraText(it, NuvoraTheme.typography.body, color = colors.error) }
             (status as? SaveStatus.Failed)?.let {
                 NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error, modifier = Modifier.bringIntoViewRequester(resultView))
@@ -424,10 +477,11 @@ fun AddSourceScreen(
                 }
                 it.report?.let { report -> ReportPanel(report, resultFocus) }
             }
+            EnterButton(if (status == SaveStatus.Working) "ENTRANDO..." else "ENTRAR", onClick = ::submit)
             if (status == SaveStatus.Working) {
                 NuvoraText(
                     when (val p = progress) {
-                        null -> "Conectando ao provedor... listas grandes podem levar alguns minutos."
+                        null -> "Conectando... listas grandes podem levar alguns minutos."
                         is ImportProgress.Downloading -> "Baixando a lista... ${formatMegabytes(p.bytes)}"
                         is ImportProgress.Reading -> "Organizando a lista... já li ${formatCount(p.items)} itens."
                         is ImportProgress.Step -> p.text
@@ -435,119 +489,120 @@ fun AddSourceScreen(
                     NuvoraTheme.typography.body,
                     color = colors.textSecondary,
                 )
-            } else {
-                NuvoraButton(
-                    text = "Testar e salvar",
-                    icon = NuvoraIcons.Check,
-                    onClick = {
-                        // Colou o link completo no campo Provedor? Separa Provedor, Usuário e Senha sozinho.
-                        if (kind == SourceKind.Provider) {
-                            parseProviderLink(server)?.let { parsed ->
-                                server = parsed.server
-                                user = parsed.user
-                                password = parsed.password
-                            }
-                        }
-                        formError = when {
-                            kind == SourceKind.Link && !link.trim().startsWith("http", ignoreCase = true) -> "Cole o link da lista (começa com http)."
-                            kind == SourceKind.Provider && server.isBlank() -> "Preencha o Provedor (o endereço que o fornecedor mandou)."
-                            kind == SourceKind.Provider && (user.isBlank() || password.isBlank()) -> "Preencha o usuário e a senha."
-                            kind == SourceKind.File && fileUri == null -> "Escolha o arquivo da lista."
-                            !agreed -> "Marque a confirmação de direito de acesso."
-                            else -> null
-                        }
-                        if (formError != null) return@NuvoraButton
-                        status = SaveStatus.Working
-                        progress = null
-                        scope.launch {
-                            val onProgress: (ImportProgress) -> Unit = { progress = it }
-                            val result = when (kind) {
-                                SourceKind.Link -> onSaveLink(name, link, onProgress)
-                                SourceKind.Provider -> onSaveProvider(name, ProviderLogin(server, user.trim(), password), onProgress)
-                                else -> onSaveFile(name, Uri.parse(fileUri), onProgress)
-                            }
-                            status = when (result) {
-                                is ImportResult.Success -> SaveStatus.Done(result.itemCount, result.report)
-                                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail, result.report)
-                            }
-                        }
-                    },
-                )
+            }
+            NuvoraText(
+                "Ao entrar, você confirma que tem direito de acesso a este conteúdo. O NUVORA é só um reprodutor: não vem com nenhum conteúdo.",
+                NuvoraTheme.typography.caption,
+                color = colors.textSecondary,
+            )
+            // Outras formas de acesso: discretas, sem disputar o destaque com o login.
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NuvoraText("Outras formas:", NuvoraTheme.typography.caption, color = colors.textSecondary)
+                if (mode != EntryMode.Login) TextLink("Usuário e senha") { mode = EntryMode.Login; formError = null; status = SaveStatus.Idle }
+                if (mode != EntryMode.Link) TextLink("Link da lista") { mode = EntryMode.Link; formError = null; status = SaveStatus.Idle }
+                // TVs normalmente não têm onde escolher arquivos.
+                if (!isTv && mode != EntryMode.File) TextLink("Arquivo M3U") { mode = EntryMode.File; formError = null; status = SaveStatus.Idle }
+            }
+            extraContent()
+        }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = isTv || maxWidth >= 700.dp
+        if (wide) {
+            Row(Modifier.fillMaxSize()) {
+                BrandPanel(Modifier.weight(0.46f).fillMaxHeight())
+                Box(Modifier.width(1.dp).fillMaxHeight().background(colors.outline))
+                Box(
+                    Modifier
+                        .weight(0.54f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = if (isTv) 56.dp else 32.dp, vertical = if (isTv) 40.dp else 24.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) { form() }
+            }
+        } else {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                NuvoraLogo(Modifier.padding(top = 12.dp, bottom = 4.dp))
+                form()
             }
         }
     }
 }
 
+/** Lado esquerdo das telas deitadas: a marca NUVORA com a frase de apresentação. */
 @Composable
-private fun ChoiceButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    hint: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
+private fun BrandPanel(modifier: Modifier) {
     val colors = NuvoraTheme.colors
-    NuvoraClickable(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier.fillMaxWidth(),
-        containerColor = colors.surface,
-        focusedContainerColor = colors.surfaceRaised,
-        border = BorderStroke(1.dp, colors.outline),
+    val isTv = NuvoraTheme.isTv
+    Column(
+        modifier.padding(horizontal = if (isTv) 64.dp else 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            NuvoraIcon(icon, tint = colors.accent)
-            Column {
-                NuvoraText(title, NuvoraTheme.typography.label)
-                NuvoraText(hint, NuvoraTheme.typography.caption, color = colors.textSecondary)
-            }
+        NuvoraLogo()
+        NuvoraText("Seus canais, filmes e séries num só lugar.", NuvoraTheme.typography.section)
+        if (isTv) {
+            NuvoraText("Use as setas do controle e OK para digitar.", NuvoraTheme.typography.caption, color = colors.textSecondary)
         }
     }
 }
+
+/** Botão principal largo (ENTRAR / Ir para o Início), com o mesmo acabamento dos botões NUVORA. */
+@Composable
+private fun EnterButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = NuvoraTheme.colors
+    val isTv = NuvoraTheme.isTv
+    NuvoraClickable(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.fillMaxWidth().semantics { contentDescription = text },
+        containerColor = colors.primary,
+        focusedContainerColor = colors.primary,
+        focusedBorderColor = colors.textPrimary,
+    ) {
+        Box(Modifier.fillMaxWidth().padding(vertical = if (isTv) 16.dp else 14.dp), contentAlignment = Alignment.Center) {
+            NuvoraText(text, NuvoraTheme.typography.section, color = colors.onPrimary)
+        }
+    }
+}
+
+/** Texto em ciano que funciona como botão (opções secundárias). */
+@Composable
+private fun TextLink(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    NuvoraClickable(onClick = onClick, shape = RoundedCornerShape(10.dp), modifier = modifier) {
+        NuvoraText(
+            text,
+            NuvoraTheme.typography.label,
+            color = NuvoraTheme.colors.accent,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** "http://exemplo.com:8080" → "exemplo.com:8080" (só para mostrar). */
+private fun serverLabel(server: String) = server.substringAfter("://").trimEnd('/')
+
+/** Nome automático da lista por link: o endereço do site. */
+private fun linkName(link: String) =
+    runCatching { java.net.URI(link.trim()).host }.getOrNull()?.removePrefix("www.").orEmpty()
 
 /** Na TV, deixa um trecho de texto receber o foco do controle (só para rolar a tela até ele). */
 @Composable
 private fun StepFocus(isTv: Boolean, content: @Composable () -> Unit) {
     if (!isTv) return content()
     NuvoraClickable(onClick = {}, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) { content() }
-}
-
-/** Caixa de confirmação: "Tenho direito de acesso a este conteúdo." */
-@Composable
-private fun RightsCheck(checked: Boolean, onToggle: () -> Unit) {
-    val colors = NuvoraTheme.colors
-    val label = "Tenho direito de acesso a este conteúdo."
-    NuvoraClickable(
-        onClick = onToggle,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics {
-                role = Role.Checkbox
-                contentDescription = label
-                stateDescription = if (checked) "marcado" else "não marcado"
-            },
-    ) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .background(if (checked) colors.primary else colors.surface, RoundedCornerShape(8.dp))
-                    .border(2.dp, if (checked) colors.primary else colors.outline, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (checked) NuvoraIcon(NuvoraIcons.Check, tint = colors.onPrimary, size = 18.dp)
-            }
-            Column {
-                NuvoraText(label, NuvoraTheme.typography.label)
-                NuvoraText(
-                    "O NUVORA é só um reprodutor: não vem com nenhum conteúdo. Use apenas listas que você tem direito de assistir.",
-                    NuvoraTheme.typography.caption,
-                    color = colors.textSecondary,
-                )
-            }
-        }
-    }
 }
 
 /** Janela para escolher o episódio de uma série. */

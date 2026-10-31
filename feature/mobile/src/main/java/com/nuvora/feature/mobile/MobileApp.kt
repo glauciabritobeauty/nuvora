@@ -78,6 +78,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val colors = NuvoraTheme.colors
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val savedServer by viewModel.savedServer.collectAsStateWithLifecycle()
     val subtitleMode by viewModel.subtitleMode.collectAsStateWithLifecycle()
     val largeText by viewModel.largeText.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
@@ -126,6 +127,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 onSaveLink = viewModel::addLinkSource,
                 onSaveFile = viewModel::addFileSource,
                 onSaveProvider = viewModel::addProviderSource,
+                savedServer = savedServer,
                 onFinished = {
                     welcomeOpen = false
                     tab = Tab.Home
@@ -170,6 +172,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     onSaveLink = viewModel::addLinkSource,
                     onSaveFile = viewModel::addFileSource,
                     onSaveProvider = viewModel::addProviderSource,
+                    savedServer = savedServer,
                     onFinished = { addingSource = false; tab = Tab.Home },
                     onBack = { addingSource = false },
                 )

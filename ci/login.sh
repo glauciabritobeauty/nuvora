@@ -49,21 +49,7 @@ login() {
   adb shell pm clear "$PKG" > /dev/null
   adb logcat -c
   adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 6
-  if [ "$NAME" = "tv" ]; then
-    focus "boas-vindas"; focus_until "Provedor, usuário e senha" $U; focus_until "Provedor, usuário e senha" $D; key $OK; sleep 2
-    focus_until "exemplo.com" $D; key $OK; sleep 1; adb shell input text "$SERVIDOR"; key $BACK
-    focus_until "Usuário" $D; key $OK; sleep 1; adb shell input text "$usuario"; key $BACK
-    focus_until "Senha" $D; key $OK; sleep 1; adb shell input text "$SENHA"; key $BACK
-    focus_until "Tenho direito" $D; key $OK
-    focus_until "Testar e salvar" $D; key $OK
-  else
-    tap_text "Provedor, usuário e senha"
-    tap_text "http://exemplo.com:8080"; adb shell input text "$SERVIDOR"; key KEYCODE_BACK
-    tap_text "Usuário"; adb shell input text "$usuario"; key KEYCODE_BACK
-    tap_text "Senha"; adb shell input text "$SENHA"; key KEYCODE_BACK
-    tap_text "Tenho direito de acesso a este conteúdo."
-    tap_text "Testar e salvar"
-  fi
+  login_form "$SERVIDOR" "$usuario" "$SENHA"
 }
 
 open_report() {

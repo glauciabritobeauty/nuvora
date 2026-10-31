@@ -200,3 +200,43 @@ EOF
       key "$2"; focus "  procurando '$1'"
     done
   }
+
+# --- Nova entrada (usuário e senha direto, servidor opcional, ENTRAR) ---
+# login_form servidor usuario senha [nao-entrar]: preenche e (se não pedir o contrário) aperta ENTRAR.
+login_form() {
+  local servidor=$1 usuario=$2 senha=$3
+  read_ui
+  if [ "$NAME" = "tv" ]; then
+    focus "entrada"
+    if ! grep -qF 'Entre com seu usuário e senha' ui.xml; then focus_until "Usuário e senha" $D; key $OK; sleep 2; focus "voltou ao login"; fi
+    focus_until "USUÁRIO" $U; key $OK; sleep 1; adb shell input text "$usuario"; key $BACK
+    focus_until "SENHA" $D; key $OK; sleep 1; adb shell input text "$senha"; key $BACK
+    focus_until "ervidor" $D; key $OK; sleep 2; focus "campo do servidor"
+    focus_until "SERVIDOR (DNS)" $D; key $OK; sleep 1; clear_field; adb shell input text "$servidor"; key $BACK
+    focus_until "ENTRAR" $D
+    [ "${4:-}" = "nao-entrar" ] || key $OK
+  else
+    if ! grep -qF 'Entre com seu usuário e senha' ui.xml; then tap_text "Usuário e senha"; fi
+    tap_text "Digite seu usuário"; adb shell input text "$usuario"; key KEYCODE_BACK
+    tap_text "Digite sua senha"; adb shell input text "$senha"; key KEYCODE_BACK
+    read_ui
+    if grep -qF '+ Usar outro servidor (DNS)' ui.xml; then tap_text "+ Usar outro servidor (DNS)"; else tap_text "Servidor: ${servidor#*://} · Trocar"; fi
+    read_ui
+    if grep -qF 'text="http://exemplo.com:8080"' ui.xml; then tap_text "http://exemplo.com:8080"; else tap_text "$servidor"; clear_field; fi
+    adb shell input text "$servidor"; key KEYCODE_BACK
+    [ "${4:-}" = "nao-entrar" ] || tap_text "ENTRAR"
+  fi
+}
+
+# link_form endereço: entra pela opção discreta "Link da lista" e aperta ENTRAR.
+link_form() {
+  if [ "$NAME" = "tv" ]; then
+    focus "entrada"; focus_until "Link da lista" $D; key $OK; sleep 2; focus "campo do link"
+    focus_until "LINK DA LISTA" $U; key $OK; sleep 1; adb shell input text "$1"; key $BACK
+    focus_until "ENTRAR" $D; key $OK
+  else
+    tap_text "Link da lista"
+    tap_text "http://..."; adb shell input text "$1"; key KEYCODE_BACK
+    tap_text "ENTRAR"
+  fi
+}

@@ -100,23 +100,13 @@ cold_starts primeira_abertura 3
 adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 5
 adb logcat -c
 if [ "$NAME" = "tv" ]; then
-  focus "boas-vindas"; focus_until "Provedor, usuário e senha" $U; focus_until "Provedor, usuário e senha" $D; key $OK; sleep 2
-  # O nome é opcional (fica "Minha lista"); na TV vamos direto ao Provedor.
-  focus_until "exemplo.com" $D; key $OK; sleep 1; adb shell input text "http://10.0.2.2:8800"; key $BACK
-  focus_until "Usuário" $D; key $OK; sleep 1; adb shell input text "grande"; key $BACK
-  focus_until "Senha" $D; key $OK; sleep 1; adb shell input text "1234"; key $BACK
-  focus_until "Tenho direito" $D; key $OK
-  focus_until "Testar e salvar" $D; INICIO=$(date +%s); key $OK
+  login_form "http://10.0.2.2:8800" "grande" "1234" nao-entrar
+  INICIO=$(date +%s); key $OK
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
-  tap_text "Provedor, usuário e senha"
-  tap_text "Minha lista"; adb shell input text "Grande"; key KEYCODE_BACK
-  tap_text "http://exemplo.com:8080"; adb shell input text "http://10.0.2.2:8800"; key KEYCODE_BACK
-  tap_text "Usuário"; adb shell input text "grande"; key KEYCODE_BACK
-  tap_text "Senha"; adb shell input text "1234"; key KEYCODE_BACK
-  tap_text "Tenho direito de acesso a este conteúdo."
-  INICIO=$(date +%s); tap_text "Testar e salvar"
+  login_form "http://10.0.2.2:8800" "grande" "1234" nao-entrar
+  INICIO=$(date +%s); tap_text "ENTRAR"
 fi
 # Espera o "Pronto!" (até 15 minutos) olhando as anotações do app (mais leve que ler a tela).
 for i in $(seq 1 180); do if flog | grep -q "importou"; then break; fi; sleep 5; done
