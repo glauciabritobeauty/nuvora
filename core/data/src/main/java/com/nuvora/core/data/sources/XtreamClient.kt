@@ -29,9 +29,13 @@ data class Episode(val id: String, val season: Int, val number: Int, val title: 
 fun parseProviderLink(text: String): ProviderLogin? {
     val trimmed = text.trim()
     if (!trimmed.contains("username=", ignoreCase = true)) return null
-    val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return null
-    val user = uri.getQueryParameter("username")?.takeIf { it.isNotBlank() } ?: return null
-    val password = uri.getQueryParameter("password")?.takeIf { it.isNotBlank() } ?: return null
+    val uri = runCatching { java.net.URI(if (trimmed.contains("://")) trimmed else "http://$trimmed") }.getOrNull() ?: return null
+    val query = (uri.rawQuery ?: return null).split('&').mapNotNull { pair ->
+        val key = pair.substringBefore('=', "").lowercase()
+        if (key.isEmpty()) null else key to java.net.URLDecoder.decode(pair.substringAfter('=', ""), "UTF-8")
+    }.toMap()
+    val user = query["username"]?.takeIf { it.isNotBlank() } ?: return null
+    val password = query["password"]?.takeIf { it.isNotBlank() } ?: return null
     val host = uri.host ?: return null
     val port = if (uri.port != -1) ":${uri.port}" else ""
     return ProviderLogin("${uri.scheme ?: "http"}://$host$port", user, password)

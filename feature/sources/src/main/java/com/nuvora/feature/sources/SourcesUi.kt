@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -193,6 +194,7 @@ fun AddSourceScreen(
     var formError by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf<ImportProgress?>(null) }
     val firstField = remember { FocusRequester() }
+    val firstChoice = remember { FocusRequester() }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -230,9 +232,14 @@ fun AddSourceScreen(
             }
             if (kind == null) {
                 NuvoraText("Como você recebeu a sua lista?", NuvoraTheme.typography.section)
-                ChoiceButton(NuvoraIcons.User, "Provedor, usuário e senha", "Os dados de acesso que o fornecedor mandou") {
-                    kind = SourceKind.Provider
-                }
+                ChoiceButton(
+                    NuvoraIcons.User,
+                    "Provedor, usuário e senha",
+                    "Os dados de acesso que o fornecedor mandou",
+                    Modifier.focusRequester(firstChoice),
+                ) { kind = SourceKind.Provider }
+                // Na TV o foco do controle já começa na primeira opção.
+                LaunchedEffect(Unit) { if (isTv) runCatching { firstChoice.requestFocus() } }
                 ChoiceButton(NuvoraIcons.Link, "Link da lista", "Um endereço que começa com http") { kind = SourceKind.Link }
                 // TVs normalmente não têm onde escolher arquivos.
                 if (!isTv) {
@@ -252,18 +259,7 @@ fun AddSourceScreen(
             if (kind == SourceKind.Provider) {
                 NuvoraTextField(
                     value = server,
-                    onValueChange = { text ->
-                        // Colou o link completo? Separa Provedor, Usuário e Senha sozinho.
-                        val parsed = parseProviderLink(text)
-                        if (parsed != null) {
-                            server = parsed.server
-                            user = parsed.user
-                            password = parsed.password
-                        } else {
-                            server = text
-                        }
-                        formError = null
-                    },
+                    onValueChange = { server = it; formError = null },
                     label = "Provedor",
                     placeholder = "http://exemplo.com:8080",
                     keyboardType = KeyboardType.Uri,
@@ -321,6 +317,14 @@ fun AddSourceScreen(
                     text = "Testar e salvar",
                     icon = NuvoraIcons.Check,
                     onClick = {
+                        // Colou o link completo no campo Provedor? Separa Provedor, Usuário e Senha sozinho.
+                        if (kind == SourceKind.Provider) {
+                            parseProviderLink(server)?.let { parsed ->
+                                server = parsed.server
+                                user = parsed.user
+                                password = parsed.password
+                            }
+                        }
                         formError = when {
                             kind == SourceKind.Link && !link.trim().startsWith("http", ignoreCase = true) -> "Cole o link da lista (começa com http)."
                             kind == SourceKind.Provider && server.isBlank() -> "Preencha o Provedor (o endereço que o fornecedor mandou)."
@@ -352,12 +356,18 @@ fun AddSourceScreen(
 }
 
 @Composable
-private fun ChoiceButton(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String, onClick: () -> Unit) {
+private fun ChoiceButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    hint: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val colors = NuvoraTheme.colors
     NuvoraClickable(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         containerColor = colors.surface,
         focusedContainerColor = colors.surfaceRaised,
         border = BorderStroke(1.dp, colors.outline),

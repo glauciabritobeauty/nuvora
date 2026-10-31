@@ -462,8 +462,8 @@ else
   add_provider "Vencido" "http://10.0.2.2:8000" "vencido" "1234"
   wait_text "A sua assinatura venceu. Fale com o seu fornecedor." 30
   check_text "Detalhe técnico: venceu em 13/09/2020" sim; shot 41-assinatura-vencida
-  # Colando o link inteiro no campo Provedor: separa usuário e senha sozinho.
-  add_provider "Meu%sprovedor" "http://10.0.2.2:8000/get.php?username=teste\&password=1234\&type=m3u_plus"
+  # Provedor certo (a separação do link colado tem testes automáticos próprios).
+  add_provider "Meu%sprovedor" "http://10.0.2.2:8000" "teste" "1234"
   wait_text "Pronto! 5 itens encontrados." 60; shot 42-provedor-ok
   tap_text "Ir para o Início"; sleep 3
   tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Canal%sHLS"; key KEYCODE_BACK; sleep 2
