@@ -11,7 +11,7 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 
 ## Onde paramos (30/10/2026, noite)
 - Etapa 7 — **Parte 1 entregue** (listas M3U por link e arquivo). Falta a Glaucia aprovar a Parte 1 para começar a Parte 2 (Provedor/Usuário/Senha + QR Code na TV).
-- APK: `apk/nuvora-etapa7-parte1b.apk` (com as correções para provedores).
+- APK: `apk/nuvora-etapa7-parte1c.apk` (com as correções para provedores). Parte 2 iniciada em 31/10/2026 com autorização ("sim").
 
 ## Situação das etapas
 | Etapa | Descrição | Situação |
@@ -287,6 +287,7 @@ Android Gradle Plugin 9.5.0 · Gradle 9.8.2 · Kotlin 2.4.21 · Compose BOM 2026
 - **Defeitos achados e corrigidos:** na TV, com o teclado fechado, as setas não saíam do campo de texto (a pessoa ficava presa) — corrigido também na busca da TV; Ajustes não rolava (itens ficavam fora da tela).
 - Não testado: importação por **arquivo** (precisa do seletor de arquivos do Android, difícil de automatizar) — testar no celular real; listas reais de fornecedores.
 - **Correção depois do teste real da Glaucia (31/10/2026):** um link real do tipo `get.php?username=...&password=...&type=m3u_plus` deu "Não foi possível ler a lista". O link não foi aberto por mim (fonte não verificada como autorizada; contém senha). Correções: o app se apresenta como navegador (lista e player); espera até 2 min pela resposta; entende códigos de limite de conexões/assinatura (429, 456, 458, 509, 884); mostra "Detalhe técnico" (ex.: HTTP 456) embaixo do erro; mostra o andamento ("já li N itens"); nunca fecha por causa de lista estranha; player segue redirecionamento http→https. Testes com servidor que imita provedores: lento (45 s), exige navegador, redireciona, limite 456, link inexistente (404) — **todos OK** no celular e tablet. Aguardando a Glaucia testar de novo e, se falhar, mandar o "Detalhe técnico".
+- **2º teste real (31/10/2026):** "SSLPeerUnverifiedException" (certificado do https do provedor inválido) e, pelo http, "SocketException" (provedor cortou a conexão no meio). Correções: (1) se o certificado do https for inválido, o app tenta o mesmo endereço pelo http sozinho — na lista e no vídeo (autorizado pela Glaucia: "sim"; risco explicado: sem criptografia com aquele provedor; o app continua recusando certificado falso no https); (2) a lista é baixada inteira para um arquivo temporário antes de organizar, mostrando "Baixando a lista... X MB", com até 3 tentativas se a conexão cair. Testes com servidor imitando certificado inválido (https real com certificado de outro site) e corte da conexão no meio 2 vezes: **OK** (entrou na 3ª tentativa).
 - Pendências: o título "Adicionados recentemente" não faz sentido para listas — trocar por "Da sua lista" (pequeno, pedir ok); TV ao sair do player às vezes sem foco; acessibilidade da faixa inferior.
 
 ---
