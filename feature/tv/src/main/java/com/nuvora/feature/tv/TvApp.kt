@@ -112,7 +112,10 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             items = MENU.map { it.item },
             bottomItems = listOf(TvTab.Settings.item),
             selectedKey = tab.item.key,
-            onSelect = { selected -> tab = TvTab.entries.first { it.item.key == selected.key } },
+            onSelect = { selected ->
+                addingSource = false
+                tab = TvTab.entries.first { it.item.key == selected.key }
+            },
             selectedFocusRequester = menuFocus,
             modifier = Modifier.onFocusChanged { menuFocused = it.hasFocus },
         )

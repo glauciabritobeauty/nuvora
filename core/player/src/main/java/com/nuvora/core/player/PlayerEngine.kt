@@ -11,7 +11,11 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.nuvora.core.data.sources.NUVORA_USER_AGENT
 import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.model.SubtitleMode
 import java.util.Locale
@@ -33,7 +37,14 @@ internal fun createPlayer(
     val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(15_000, 30_000, 1_500, 3_000)
         .build()
+    // Provedores costumam redirecionar de http para https e recusar apps desconhecidos.
+    val http = DefaultHttpDataSource.Factory()
+        .setUserAgent(NUVORA_USER_AGENT)
+        .setAllowCrossProtocolRedirects(true)
+        .setConnectTimeoutMs(20_000)
+        .setReadTimeoutMs(30_000)
     return ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
         .setLoadControl(loadControl)
         .setSeekBackIncrementMs(SEEK_STEP_MS)
         .setSeekForwardIncrementMs(SEEK_STEP_MS)

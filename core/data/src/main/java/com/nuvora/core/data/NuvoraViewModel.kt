@@ -106,9 +106,11 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     // ---- Listas ----
 
-    suspend fun addLinkSource(name: String, url: String): ImportResult = sourcesRepo.addLink(name, url)
+    suspend fun addLinkSource(name: String, url: String, onProgress: (Int) -> Unit): ImportResult =
+        sourcesRepo.addLink(name, url, onProgress)
 
-    suspend fun addFileSource(name: String, uri: Uri): ImportResult = sourcesRepo.addFile(name, uri)
+    suspend fun addFileSource(name: String, uri: Uri, onProgress: (Int) -> Unit): ImportResult =
+        sourcesRepo.addFile(name, uri, onProgress)
 
     suspend fun refreshSource(id: Long): ImportResult = sourcesRepo.refresh(id)
 

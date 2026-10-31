@@ -422,7 +422,17 @@ else
   # Link errado: mensagem clara.
   add_link "Lista%serrada" "http://10.0.2.2:8000/nao-existe.m3u"
   wait_text "Não encontramos a lista nesse endereço. Confira o link." 30; shot 35-link-errado
-  key KEYCODE_BACK
+  check_text "Detalhe técnico: HTTP 404" sim
+  # Provedores "difíceis" (imitados pelo servidor de teste).
+  add_link "Provedor%slento" "http://10.0.2.2:8000/lento.m3u"
+  wait_text "Pronto! 4 itens encontrados." 120; shot 36-provedor-lento
+  add_link "Exige%snavegador" "http://10.0.2.2:8000/exige-navegador.m3u"
+  wait_text "Pronto! 4 itens encontrados." 30
+  add_link "Redireciona" "http://10.0.2.2:8000/redireciona.m3u"
+  wait_text "Pronto! 4 itens encontrados." 30
+  add_link "Limite" "http://10.0.2.2:8000/erro-456"
+  wait_text "Detalhe técnico: HTTP 456" 30; shot 37-limite-de-conexoes
+  check_text "O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor." sim
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

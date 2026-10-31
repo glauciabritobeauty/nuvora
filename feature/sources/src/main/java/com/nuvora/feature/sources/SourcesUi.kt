@@ -107,7 +107,8 @@ fun SourcesSection(
                             scope.launch {
                                 val message = when (val result = onRefresh(source.id)) {
                                     is ImportResult.Success -> "Lista atualizada: ${formatCount(result.itemCount)} itens."
-                                    is ImportResult.Failure -> result.reason.message + " A versão anterior continua valendo."
+                                    is ImportResult.Failure -> result.reason.message + " A versão anterior continua valendo." +
+                                        (result.detail?.let { " (detalhe técnico: $it)" } ?: "")
                                 }
                                 messages = messages + (source.id to message)
                                 busyId = null
@@ -151,7 +152,7 @@ private sealed interface SaveStatus {
     data object Idle : SaveStatus
     data object Working : SaveStatus
     data class Done(val count: Int) : SaveStatus
-    data class Failed(val message: String) : SaveStatus
+    data class Failed(val message: String, val detail: String?) : SaveStatus
 }
 
 /**
@@ -160,8 +161,8 @@ private sealed interface SaveStatus {
  */
 @Composable
 fun AddSourceScreen(
-    onSaveLink: suspend (name: String, url: String) -> ImportResult,
-    onSaveFile: suspend (name: String, uri: Uri) -> ImportResult,
+    onSaveLink: suspend (name: String, url: String, onProgress: (Int) -> Unit) -> ImportResult,
+    onSaveFile: suspend (name: String, uri: Uri, onProgress: (Int) -> Unit) -> ImportResult,
     onFinished: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -178,6 +179,7 @@ fun AddSourceScreen(
     var agreed by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf<SaveStatus>(SaveStatus.Idle) }
     var formError by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableStateOf(0) }
     val firstField = remember { FocusRequester() }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -252,9 +254,18 @@ fun AddSourceScreen(
             }
             RightsCheck(agreed) { agreed = !agreed; formError = null }
             formError?.let { NuvoraText(it, NuvoraTheme.typography.body, color = colors.error) }
-            (status as? SaveStatus.Failed)?.let { NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error) }
+            (status as? SaveStatus.Failed)?.let {
+                NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error)
+                it.detail?.let { detail ->
+                    NuvoraText("Detalhe técnico: $detail", NuvoraTheme.typography.caption, color = colors.textSecondary)
+                }
+            }
             if (status == SaveStatus.Working) {
-                NuvoraText("Lendo a lista... listas grandes podem levar alguns segundos.", NuvoraTheme.typography.body, color = colors.textSecondary)
+                NuvoraText(
+                    if (progress == 0) "Lendo a lista... listas grandes podem levar alguns minutos." else "Lendo a lista... já li ${formatCount(progress)} itens.",
+                    NuvoraTheme.typography.body,
+                    color = colors.textSecondary,
+                )
             } else {
                 NuvoraButton(
                     text = "Testar e salvar",
@@ -268,11 +279,17 @@ fun AddSourceScreen(
                         }
                         if (formError != null) return@NuvoraButton
                         status = SaveStatus.Working
+                        progress = 0
                         scope.launch {
-                            val result = if (kind == SourceKind.Link) onSaveLink(name, link) else onSaveFile(name, Uri.parse(fileUri))
+                            val onProgress: (Int) -> Unit = { progress = it }
+                            val result = if (kind == SourceKind.Link) {
+                                onSaveLink(name, link, onProgress)
+                            } else {
+                                onSaveFile(name, Uri.parse(fileUri), onProgress)
+                            }
                             status = when (result) {
                                 is ImportResult.Success -> SaveStatus.Done(result.itemCount)
-                                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message)
+                                is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail)
                             }
                         }
                     },

@@ -52,13 +52,15 @@ enum class ImportFailure(val message: String) {
     NotAList("Esse endereço não é uma lista de canais (.m3u). Confira o link."),
     Empty("A lista está vazia: não tem nenhum canal, filme ou série."),
     ServerError("O provedor está com problema agora. Tente de novo mais tarde."),
+    Limited("O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor."),
     FileUnreadable("Não foi possível abrir esse arquivo. Escolha a lista de novo."),
     Other("Não foi possível ler a lista. Tente de novo."),
 }
 
 sealed interface ImportResult {
     data class Success(val itemCount: Int) : ImportResult
-    data class Failure(val reason: ImportFailure) : ImportResult
+    /** [detail]: código curto para o suporte (ex.: "HTTP 456"), mostrado pequeno embaixo da mensagem. Nunca contém senha. */
+    data class Failure(val reason: ImportFailure, val detail: String? = null) : ImportResult
 }
 
 /** O que a Home mostra de todas as listas juntas (só uma amostra por categoria, nunca a lista inteira). */
@@ -102,15 +104,15 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
 
     suspend fun load() = io { refreshSources() }
 
-    suspend fun addLink(name: String, url: String): ImportResult = io {
-        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim()) { openUrl(url.trim()) }
+    suspend fun addLink(name: String, url: String, onProgress: (Int) -> Unit = {}): ImportResult = io {
+        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) { openUrl(url.trim()) }
     }
 
-    suspend fun addFile(name: String, uri: Uri): ImportResult = io {
+    suspend fun addFile(name: String, uri: Uri, onProgress: (Int) -> Unit = {}): ImportResult = io {
         runCatching {
             appContext.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        importFrom(sourceId = null, name = name, kind = SourceKind.File, address = uri.toString()) { openFile(uri) }
+        importFrom(sourceId = null, name = name, kind = SourceKind.File, address = uri.toString(), onProgress = onProgress) { openFile(uri) }
     }
 
     /** Lê a lista de novo (o fornecedor pode ter mudado). Se der errado, a versão antiga continua valendo. */
@@ -203,17 +205,20 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         name: String,
         kind: SourceKind,
         address: String,
+        onProgress: (Int) -> Unit = {},
         open: () -> InputStream,
     ): ImportResult {
         val started = SystemClock.elapsedRealtime()
         val stream = try {
             open()
         } catch (failure: ImportException) {
-            return ImportResult.Failure(failure.reason)
+            return ImportResult.Failure(failure.reason, failure.detail)
         } catch (e: IOException) {
-            return ImportResult.Failure(e.toFailure(kind))
+            return ImportResult.Failure(e.toFailure(kind), e.javaClass.simpleName)
         } catch (e: SecurityException) {
-            return ImportResult.Failure(ImportFailure.FileUnreadable)
+            return ImportResult.Failure(ImportFailure.FileUnreadable, e.javaClass.simpleName)
+        } catch (e: RuntimeException) {
+            return ImportResult.Failure(ImportFailure.Other, e.javaClass.simpleName)
         }
         val db = database.writableDatabase
         db.beginTransaction()
@@ -244,6 +249,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                     entry.group?.let { insert.bindString(5, it) }
                     insert.bindString(6, crypto.encrypt(entry.url))
                     insert.executeInsert()
+                    if (position % 2_000 == 0L) onProgress(position.toInt())
                 }
             }
             if (summary.entries == 0) {
@@ -262,7 +268,10 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             if (debug) Log.i("NuvoraFontes", "importou ${summary.entries} itens em ${SystemClock.elapsedRealtime() - started} ms")
             return ImportResult.Success(summary.entries)
         } catch (e: IOException) {
-            return ImportResult.Failure(e.toFailure(kind))
+            return ImportResult.Failure(e.toFailure(kind), e.javaClass.simpleName)
+        } catch (e: RuntimeException) {
+            // Nunca derruba o app por causa de uma lista estranha: explica e deixa tentar de novo.
+            return ImportResult.Failure(ImportFailure.Other, e.javaClass.simpleName)
         } finally {
             db.endTransaction()
             refreshSources()
@@ -273,26 +282,30 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         var current = address
         repeat(5) {
             val connection = (URL(current).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15_000
-                readTimeout = 30_000
+                connectTimeout = 20_000
+                // Alguns provedores levam bastante tempo para montar listas grandes antes de começar a enviar.
+                readTimeout = 120_000
                 instanceFollowRedirects = false
-                setRequestProperty("User-Agent", "NUVORA")
+                setRequestProperty("User-Agent", NUVORA_USER_AGENT)
             }
             val code = connection.responseCode
             when {
                 code in 200..299 -> return connection.inputStream
                 code in 300..399 -> {
                     // Segue redirecionamentos, inclusive de http para https (o Android não faz isso sozinho).
-                    current = URL(URL(current), connection.getHeaderField("Location") ?: throw ImportException(ImportFailure.NotFound)).toString()
+                    current = URL(URL(current), connection.getHeaderField("Location") ?: throw ImportException(ImportFailure.NotFound, "HTTP $code")).toString()
                     connection.disconnect()
                 }
-                code == 401 || code == 403 -> throw ImportException(ImportFailure.Denied)
-                code == 404 || code == 410 -> throw ImportException(ImportFailure.NotFound)
-                code >= 500 -> throw ImportException(ImportFailure.ServerError)
-                else -> throw ImportException(ImportFailure.Other)
+                code == 401 || code == 403 -> throw ImportException(ImportFailure.Denied, "HTTP $code")
+                code == 404 || code == 410 -> throw ImportException(ImportFailure.NotFound, "HTTP $code")
+                // Códigos que provedores usam para limite de conexões, bloqueio temporário ou assinatura vencida.
+                code == 429 || code == 456 || code == 458 || code == 509 || code == 884 ->
+                    throw ImportException(ImportFailure.Limited, "HTTP $code")
+                code >= 500 -> throw ImportException(ImportFailure.ServerError, "HTTP $code")
+                else -> throw ImportException(ImportFailure.Other, "HTTP $code")
             }
         }
-        throw ImportException(ImportFailure.NotFound)
+        throw ImportException(ImportFailure.NotFound, "muitos redirecionamentos")
     }
 
     private fun openFile(uri: Uri): InputStream =
@@ -330,7 +343,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         }
     }
 
-    private class ImportException(val reason: ImportFailure) : IOException(reason.name)
+    private class ImportException(val reason: ImportFailure, val detail: String? = null) : IOException(reason.name)
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 

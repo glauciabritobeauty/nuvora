@@ -233,6 +233,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             selectedKey = tab.item.key,
             onSelect = { selected ->
                 section = null
+                addingSource = false
                 tab = Tab.entries.first { it.item.key == selected.key }
             },
         )
