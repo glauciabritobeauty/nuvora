@@ -297,7 +297,8 @@ EOF
   adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 3
   for i in 1 2 3 4; do key $L; done; for i in 1 2 3 4 5 6 7 8; do key $D; done; focus "31. menu: Ajustes"; key $OK; sleep 2
   key $R; focus "32. entrou em Ajustes"; focus_until "Adicionar lista" $U; key $OK; sleep 2
-  focus "33. tela Adicionar lista (foco no primeiro campo)"; focus_until "Minha lista" $D
+  focus "33. tela Adicionar lista"; focus_until "Link da lista" $D; key $OK; sleep 2
+  focus "34. foco no primeiro campo"; focus_until "Minha lista" $D
   key $OK; sleep 2; adb shell input text "Lista%sde%steste"; key $BACK
   focus_until "http://" $D; key $OK; sleep 2; adb shell input text "http://10.0.2.2:8000/teste.m3u"; key $BACK
   focus_until "Tenho direito" $D; key $OK
@@ -443,6 +444,35 @@ else
   add_link "Corta%sno%smeio" "http://10.0.2.2:8000/corta.m3u"
   wait_text "Pronto! 20.000 itens encontrados." 240; shot 39-corta-no-meio
   adb logcat -d -s NuvoraFontes:I | grep -E "caiu|tentativa" | sed 's/.*NuvoraFontes: /  anotação: /' >> "$STEPS"
+
+  # Etapa 7 (Parte 2): Provedor, Usuário e Senha.
+  add_provider() {
+    tap_tab "Ajustes" 5; tap_text "Adicionar lista"; tap_text "Provedor, usuário e senha"
+    tap_text "Minha lista"; adb shell input text "$1"; key KEYCODE_BACK
+    tap_text "http://exemplo.com:8080"; adb shell input text "$2"; key KEYCODE_BACK
+    if [ -n "${3:-}" ]; then
+      tap_text "Usuário"; adb shell input text "$3"; key KEYCODE_BACK
+      tap_text "Senha"; adb shell input text "$4"; key KEYCODE_BACK
+    fi
+    tap_text "Tenho direito de acesso a este conteúdo."
+    tap_text "Testar e salvar"
+  }
+  add_provider "Senha%serrada" "http://10.0.2.2:8000" "teste" "0000"
+  wait_text "Usuário ou senha incorretos. Confira e tente de novo." 30; shot 40-senha-errada
+  add_provider "Vencido" "http://10.0.2.2:8000" "vencido" "1234"
+  wait_text "A sua assinatura venceu. Fale com o seu fornecedor." 30
+  check_text "Detalhe técnico: venceu em 13/09/2020" sim; shot 41-assinatura-vencida
+  # Colando o link inteiro no campo Provedor: separa usuário e senha sozinho.
+  add_provider "Meu%sprovedor" "http://10.0.2.2:8000/get.php?username=teste\&password=1234\&type=m3u_plus"
+  wait_text "Pronto! 5 itens encontrados." 60; shot 42-provedor-ok
+  tap_text "Ir para o Início"; sleep 3
+  tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Canal%sHLS"; key KEYCODE_BACK; sleep 2
+  adb logcat -c; tap_card "Canal HLS de teste"; sleep 15
+  check_log "aberto id="; check_playing "canal ao vivo do provedor"; key KEYCODE_BACK; sleep 3
+  tap_text "Campo de busca"; clear_field; adb shell input text "Série"; key KEYCODE_BACK; sleep 2
+  tap_card "Série de teste"; wait_text "T1 E2 · Episódio 2" 30; shot 43-episodios
+  adb logcat -c; tap_text "T1 E2 · Episódio 2"; sleep 12
+  check_log "-e402"; check_playing "episódio de série"; key KEYCODE_BACK; sleep 3
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

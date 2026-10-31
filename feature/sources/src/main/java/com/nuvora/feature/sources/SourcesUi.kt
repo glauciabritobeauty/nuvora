@@ -39,7 +39,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.nuvora.core.data.SeriesEpisodes
+import com.nuvora.core.data.sources.Episode
 import com.nuvora.core.data.sources.ImportProgress
+import com.nuvora.core.data.sources.ProviderLogin
+import com.nuvora.core.data.sources.parseProviderLink
 import com.nuvora.core.data.sources.ImportResult
 import com.nuvora.core.data.sources.SourceInfo
 import com.nuvora.core.data.sources.SourceKind
@@ -167,6 +171,7 @@ private sealed interface SaveStatus {
 fun AddSourceScreen(
     onSaveLink: suspend (name: String, url: String, onProgress: (ImportProgress) -> Unit) -> ImportResult,
     onSaveFile: suspend (name: String, uri: Uri, onProgress: (ImportProgress) -> Unit) -> ImportResult,
+    onSaveProvider: suspend (name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit) -> ImportResult,
     onFinished: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -175,9 +180,12 @@ fun AddSourceScreen(
     val isTv = NuvoraTheme.isTv
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var kind by rememberSaveable { mutableStateOf<SourceKind?>(if (isTv) SourceKind.Link else null) }
+    var kind by rememberSaveable { mutableStateOf<SourceKind?>(null) }
     var name by rememberSaveable { mutableStateOf("") }
     var link by rememberSaveable { mutableStateOf("") }
+    var server by rememberSaveable { mutableStateOf("") }
+    var user by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
     var fileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var fileName by rememberSaveable { mutableStateOf<String?>(null) }
     var agreed by rememberSaveable { mutableStateOf(false) }
@@ -196,7 +204,7 @@ fun AddSourceScreen(
     }
 
     BackHandler {
-        if (kind != null && !isTv && status !is SaveStatus.Done) kind = null else onBack()
+        if (kind != null && status !is SaveStatus.Done) kind = null else onBack()
     }
 
     Column(
@@ -222,13 +230,14 @@ fun AddSourceScreen(
             }
             if (kind == null) {
                 NuvoraText("Como você recebeu a sua lista?", NuvoraTheme.typography.section)
+                ChoiceButton(NuvoraIcons.User, "Provedor, usuário e senha", "Os dados de acesso que o fornecedor mandou") {
+                    kind = SourceKind.Provider
+                }
                 ChoiceButton(NuvoraIcons.Link, "Link da lista", "Um endereço que começa com http") { kind = SourceKind.Link }
-                ChoiceButton(NuvoraIcons.File, "Arquivo do aparelho", "Um arquivo .m3u salvo no celular") { kind = SourceKind.File }
-                NuvoraText(
-                    "Recebeu Provedor, Usuário e Senha? Esse cadastro chega na próxima atualização.",
-                    NuvoraTheme.typography.caption,
-                    color = colors.textSecondary,
-                )
+                // TVs normalmente não têm onde escolher arquivos.
+                if (!isTv) {
+                    ChoiceButton(NuvoraIcons.File, "Arquivo do aparelho", "Um arquivo .m3u salvo no celular") { kind = SourceKind.File }
+                }
                 return@Column
             }
             NuvoraTextField(
@@ -240,7 +249,39 @@ fun AddSourceScreen(
             )
             // Na TV o foco do controle já começa no primeiro campo.
             LaunchedEffect(kind) { if (isTv) runCatching { firstField.requestFocus() } }
-            if (kind == SourceKind.Link) {
+            if (kind == SourceKind.Provider) {
+                NuvoraTextField(
+                    value = server,
+                    onValueChange = { text ->
+                        // Colou o link completo? Separa Provedor, Usuário e Senha sozinho.
+                        val parsed = parseProviderLink(text)
+                        if (parsed != null) {
+                            server = parsed.server
+                            user = parsed.user
+                            password = parsed.password
+                        } else {
+                            server = text
+                        }
+                        formError = null
+                    },
+                    label = "Provedor",
+                    placeholder = "http://exemplo.com:8080",
+                    keyboardType = KeyboardType.Uri,
+                )
+                NuvoraTextField(value = user, onValueChange = { user = it; formError = null }, label = "Usuário", placeholder = "Usuário")
+                NuvoraTextField(
+                    value = password,
+                    onValueChange = { password = it; formError = null },
+                    label = "Senha",
+                    placeholder = "Senha",
+                    secret = true,
+                )
+                NuvoraText(
+                    "Dica: se você recebeu um link com usuário e senha dentro, pode colar ele inteiro no campo Provedor.",
+                    NuvoraTheme.typography.caption,
+                    color = colors.textSecondary,
+                )
+            } else if (kind == SourceKind.Link) {
                 NuvoraTextField(
                     value = link,
                     onValueChange = { link = it; formError = null },
@@ -270,6 +311,7 @@ fun AddSourceScreen(
                         null -> "Conectando ao provedor... listas grandes podem levar alguns minutos."
                         is ImportProgress.Downloading -> "Baixando a lista... ${formatMegabytes(p.bytes)}"
                         is ImportProgress.Reading -> "Organizando a lista... já li ${formatCount(p.items)} itens."
+                        is ImportProgress.Step -> p.text
                     },
                     NuvoraTheme.typography.body,
                     color = colors.textSecondary,
@@ -281,6 +323,8 @@ fun AddSourceScreen(
                     onClick = {
                         formError = when {
                             kind == SourceKind.Link && !link.trim().startsWith("http", ignoreCase = true) -> "Cole o link da lista (começa com http)."
+                            kind == SourceKind.Provider && server.isBlank() -> "Preencha o Provedor (o endereço que o fornecedor mandou)."
+                            kind == SourceKind.Provider && (user.isBlank() || password.isBlank()) -> "Preencha o usuário e a senha."
                             kind == SourceKind.File && fileUri == null -> "Escolha o arquivo da lista."
                             !agreed -> "Marque a confirmação de direito de acesso."
                             else -> null
@@ -290,10 +334,10 @@ fun AddSourceScreen(
                         progress = null
                         scope.launch {
                             val onProgress: (ImportProgress) -> Unit = { progress = it }
-                            val result = if (kind == SourceKind.Link) {
-                                onSaveLink(name, link, onProgress)
-                            } else {
-                                onSaveFile(name, Uri.parse(fileUri), onProgress)
+                            val result = when (kind) {
+                                SourceKind.Link -> onSaveLink(name, link, onProgress)
+                                SourceKind.Provider -> onSaveProvider(name, ProviderLogin(server, user.trim(), password), onProgress)
+                                else -> onSaveFile(name, Uri.parse(fileUri), onProgress)
                             }
                             status = when (result) {
                                 is ImportResult.Success -> SaveStatus.Done(result.itemCount)
@@ -364,4 +408,15 @@ private fun RightsCheck(checked: Boolean, onToggle: () -> Unit) {
             }
         }
     }
+}
+
+/** Janela para escolher o episódio de uma série. */
+@Composable
+fun EpisodesDialog(series: SeriesEpisodes, onPick: (Episode) -> Unit, onDismiss: () -> Unit) {
+    NuvoraDialog(
+        title = series.title,
+        message = "Escolha o episódio",
+        onDismiss = onDismiss,
+        actions = series.episodes.map { episode -> DialogAction(episode.label, { onPick(episode) }) } + DialogAction("Fechar", {}),
+    )
 }

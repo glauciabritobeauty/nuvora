@@ -13,6 +13,8 @@ import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HeroItem
 import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.security.CryptoBox
+import com.nuvora.source.api.M3uEntry
+import com.nuvora.source.api.M3uSummary
 import com.nuvora.source.api.parseM3u
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,7 @@ data class SourceInfo(
 enum class SourceKind(val key: String, val label: String) {
     Link("link", "Link da lista"),
     File("arquivo", "Arquivo do aparelho"),
+    Provider("servidor", "Provedor, usuário e senha"),
 }
 
 /** Por que uma lista não pôde ser lida, em linguagem de gente. */
@@ -56,6 +59,9 @@ enum class ImportFailure(val message: String) {
     InvalidCertificate("O certificado de segurança desse provedor é inválido. Fale com o seu fornecedor."),
     Limited("O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor."),
     FileUnreadable("Não foi possível abrir esse arquivo. Escolha a lista de novo."),
+    WrongLogin("Usuário ou senha incorretos. Confira e tente de novo."),
+    Expired("A sua assinatura venceu. Fale com o seu fornecedor."),
+    NotAServer("Esse endereço não respondeu como um provedor. Confira o campo Provedor."),
     Other("Não foi possível ler a lista. Tente de novo."),
 }
 
@@ -63,6 +69,7 @@ enum class ImportFailure(val message: String) {
 sealed interface ImportProgress {
     data class Downloading(val bytes: Long) : ImportProgress
     data class Reading(val items: Int) : ImportProgress
+    data class Step(val text: String) : ImportProgress
 }
 
 sealed interface ImportResult {
@@ -113,23 +120,54 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     suspend fun load() = io { refreshSources() }
 
     suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
-        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) {
-            downloadToCache(url.trim(), onProgress)
+        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) { emit ->
+            m3u(downloadToCache(url.trim(), onProgress), emit)
         }
+    }
+
+    /** Provedor / Usuário / Senha: confere o acesso e busca canais, filmes e séries. */
+    suspend fun addProvider(name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
+        val clean = runCatching { login.copy(server = normalizeServer(login.server)) }.getOrElse {
+            return@io ImportResult.Failure(ImportFailure.NotAServer, "endereço inválido")
+        }
+        importFrom(sourceId = null, name = name, kind = SourceKind.Provider, address = encodeLogin(clean), onProgress = onProgress) { emit ->
+            importProvider(clean, onProgress, emit)
+        }
+    }
+
+    /** Episódios de uma série de provedor (buscados na hora, só quando a pessoa abre a série). */
+    suspend fun episodes(itemId: String): List<Episode> = io {
+        val (sourceId, position) = parseId(itemId) ?: return@io emptyList()
+        val (_, kind, address) = sourceAddress(sourceId) ?: return@io emptyList()
+        if (kind != SourceKind.Provider) return@io emptyList()
+        val seriesId = database.readableDatabase.rawQuery(
+            "SELECT url_cifrada FROM itens WHERE fonte_id = ? AND posicao = ?",
+            arrayOf(sourceId.toString(), position.toString()),
+        ).use { c -> if (c.moveToFirst()) crypto.decrypt(c.getString(0)) else null }
+            ?.removePrefix(XtreamClient.SERIES_PREFIX) ?: return@io emptyList()
+        runCatching { XtreamClient(decodeLogin(address)) { url -> downloadToCache(url) {} }.episodes(seriesId) }
+            .getOrDefault(emptyList())
+            .also { tempFile().delete() }
     }
 
     suspend fun addFile(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
         runCatching {
             appContext.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        importFrom(sourceId = null, name = name, kind = SourceKind.File, address = uri.toString(), onProgress = onProgress) { openFile(uri) }
+        importFrom(sourceId = null, name = name, kind = SourceKind.File, address = uri.toString(), onProgress = onProgress) { emit ->
+            m3u(openFile(uri), emit)
+        }
     }
 
     /** Lê a lista de novo (o fornecedor pode ter mudado). Se der errado, a versão antiga continua valendo. */
     suspend fun refresh(id: Long): ImportResult = io {
         val (name, kind, address) = sourceAddress(id) ?: return@io ImportResult.Failure(ImportFailure.Other)
-        importFrom(sourceId = id, name = name, kind = kind, address = address) {
-            if (kind == SourceKind.Link) downloadToCache(address) {} else openFile(Uri.parse(address))
+        importFrom(sourceId = id, name = name, kind = kind, address = address) { emit ->
+            when (kind) {
+                SourceKind.Link -> m3u(downloadToCache(address) {}, emit)
+                SourceKind.File -> m3u(openFile(Uri.parse(address)), emit)
+                SourceKind.Provider -> importProvider(decodeLogin(address), {}, emit)
+            }
         }
     }
 
@@ -216,20 +254,9 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         kind: SourceKind,
         address: String,
         onProgress: (ImportProgress) -> Unit = {},
-        open: () -> InputStream,
+        produce: (emit: (M3uEntry) -> Unit) -> M3uSummary,
     ): ImportResult {
         val started = SystemClock.elapsedRealtime()
-        val stream = try {
-            open()
-        } catch (failure: ImportException) {
-            return ImportResult.Failure(failure.reason, failure.detail)
-        } catch (e: IOException) {
-            return ImportResult.Failure(e.toFailure(kind), e.javaClass.simpleName)
-        } catch (e: SecurityException) {
-            return ImportResult.Failure(ImportFailure.FileUnreadable, e.javaClass.simpleName)
-        } catch (e: RuntimeException) {
-            return ImportResult.Failure(ImportFailure.Other, e.javaClass.simpleName)
-        }
         val db = database.writableDatabase
         db.beginTransaction()
         try {
@@ -249,18 +276,16 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                 "INSERT INTO itens (fonte_id, posicao, titulo, logo, grupo, url_cifrada) VALUES (?, ?, ?, ?, ?, ?)",
             )
             var position = 0L
-            val summary = stream.use { input ->
-                parseM3u(InputStreamReader(input, Charsets.UTF_8)) { entry ->
-                    insert.clearBindings()
-                    insert.bindLong(1, id)
-                    insert.bindLong(2, position++)
-                    insert.bindString(3, entry.title)
-                    entry.logo?.let { insert.bindString(4, it) }
-                    entry.group?.let { insert.bindString(5, it) }
-                    insert.bindString(6, crypto.encrypt(entry.url))
-                    insert.executeInsert()
-                    if (position % 2_000 == 0L) onProgress(ImportProgress.Reading(position.toInt()))
-                }
+            val summary = produce { entry ->
+                insert.clearBindings()
+                insert.bindLong(1, id)
+                insert.bindLong(2, position++)
+                insert.bindString(3, entry.title)
+                entry.logo?.let { insert.bindString(4, it) }
+                entry.group?.let { insert.bindString(5, it) }
+                insert.bindString(6, crypto.encrypt(entry.url))
+                insert.executeInsert()
+                if (position % 2_000 == 0L) onProgress(ImportProgress.Reading(position.toInt()))
             }
             if (summary.entries == 0) {
                 return ImportResult.Failure(if (summary.looksLikeM3u) ImportFailure.Empty else ImportFailure.NotAList)
@@ -277,8 +302,14 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             db.setTransactionSuccessful()
             if (debug) Log.i("NuvoraFontes", "importou ${summary.entries} itens em ${SystemClock.elapsedRealtime() - started} ms")
             return ImportResult.Success(summary.entries)
+        } catch (failure: ImportException) {
+            return ImportResult.Failure(failure.reason, failure.detail)
+        } catch (failure: XtreamException) {
+            return ImportResult.Failure(failure.reason, failure.detail)
         } catch (e: IOException) {
             return ImportResult.Failure(e.toFailure(kind), e.javaClass.simpleName)
+        } catch (e: SecurityException) {
+            return ImportResult.Failure(ImportFailure.FileUnreadable, e.javaClass.simpleName)
         } catch (e: RuntimeException) {
             // Nunca derruba o app por causa de uma lista estranha: explica e deixa tentar de novo.
             return ImportResult.Failure(ImportFailure.Other, e.javaClass.simpleName)
@@ -290,6 +321,24 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     }
 
     private fun tempFile() = java.io.File(appContext.cacheDir, "lista-baixando.m3u")
+
+    private fun m3u(input: InputStream, emit: (M3uEntry) -> Unit): M3uSummary =
+        input.use { parseM3u(InputStreamReader(it, Charsets.UTF_8), emit) }
+
+    private fun importProvider(login: ProviderLogin, onProgress: (ImportProgress) -> Unit, emit: (M3uEntry) -> Unit): M3uSummary {
+        val client = XtreamClient(login) { url -> downloadToCache(url) {} }
+        onProgress(ImportProgress.Step("Conferindo usuário e senha..."))
+        client.checkLogin()
+        val count = client.importAll({ onProgress(ImportProgress.Step(it)) }, emit)
+        return M3uSummary(looksLikeM3u = true, entries = count)
+    }
+
+    // Provedor/Usuário/Senha guardados juntos (e cifrados) no campo de endereço.
+    private fun encodeLogin(login: ProviderLogin) =
+        org.json.JSONObject().put("s", login.server).put("u", login.user).put("p", login.password).toString()
+
+    private fun decodeLogin(text: String) =
+        org.json.JSONObject(text).let { ProviderLogin(it.getString("s"), it.getString("u"), it.getString("p")) }
 
     /**
      * Baixa a lista inteira para um arquivo temporário antes de organizar: assim a conexão com o provedor

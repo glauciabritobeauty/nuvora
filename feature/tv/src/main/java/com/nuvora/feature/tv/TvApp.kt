@@ -26,6 +26,7 @@ import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.feature.sources.AddSourceScreen
+import com.nuvora.feature.sources.EpisodesDialog
 import com.nuvora.feature.sources.SourcesSection
 import com.nuvora.designsystem.components.DialogAction
 import com.nuvora.designsystem.components.NavItem
@@ -85,6 +86,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     }
 
     val playing by viewModel.playing.collectAsStateWithLifecycle()
+    val episodes by viewModel.episodes.collectAsStateWithLifecycle()
     playing?.let { request ->
         val start = remember(request.id) { viewModel.resumePositionFor(request.id) }
         NuvoraPlayerScreen(
@@ -124,6 +126,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 AddSourceScreen(
                     onSaveLink = viewModel::addLinkSource,
                     onSaveFile = viewModel::addFileSource,
+                    onSaveProvider = viewModel::addProviderSource,
                     onFinished = { addingSource = false; tab = TvTab.Home },
                     onBack = { addingSource = false },
                 )
@@ -230,6 +233,9 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 )
             } + DialogAction("Cancelar", {}),
         )
+    }
+    episodes?.let { series ->
+        EpisodesDialog(series, onPick = { viewModel.playEpisode(series, it) }, onDismiss = viewModel::closeEpisodes)
     }
     if (confirmClear) {
         NuvoraDialog(

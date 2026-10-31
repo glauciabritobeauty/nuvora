@@ -36,6 +36,7 @@ import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.feature.sources.AddSourceScreen
+import com.nuvora.feature.sources.EpisodesDialog
 import com.nuvora.feature.sources.SourcesSection
 import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.designsystem.components.BottomNavBar
@@ -97,6 +98,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     }
 
     val playing by viewModel.playing.collectAsStateWithLifecycle()
+    val episodes by viewModel.episodes.collectAsStateWithLifecycle()
     playing?.let { request ->
         val start = remember(request.id) { viewModel.resumePositionFor(request.id) }
         NuvoraPlayerScreen(
@@ -129,6 +131,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 AddSourceScreen(
                     onSaveLink = viewModel::addLinkSource,
                     onSaveFile = viewModel::addFileSource,
+                    onSaveProvider = viewModel::addProviderSource,
                     onFinished = { addingSource = false; tab = Tab.Home },
                     onBack = { addingSource = false },
                 )
@@ -267,6 +270,9 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                 )
             } + DialogAction("Cancelar", {}),
         )
+    }
+    episodes?.let { series ->
+        EpisodesDialog(series, onPick = { viewModel.playEpisode(series, it) }, onDismiss = viewModel::closeEpisodes)
     }
     if (confirmClear) {
         NuvoraDialog(

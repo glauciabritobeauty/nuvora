@@ -18,7 +18,10 @@ import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.data.security.CryptoBox
 import com.nuvora.core.data.settings.SettingsRepository
+import com.nuvora.core.data.sources.Episode
 import com.nuvora.core.data.sources.ImportProgress
+import com.nuvora.core.data.sources.ProviderLogin
+import com.nuvora.core.data.sources.XtreamClient
 import com.nuvora.core.data.sources.ImportResult
 import com.nuvora.core.data.sources.SourceCatalog
 import com.nuvora.core.data.sources.SourceInfo
@@ -31,6 +34,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** Série aberta, com a lista de episódios para escolher. */
+@Immutable
+data class SeriesEpisodes(val itemId: String, val title: String, val episodes: List<Episode>)
 
 /** Tudo o que as telas (celular e TV) precisam mostrar. */
 @Immutable
@@ -70,6 +77,11 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Listas cadastradas (Ajustes > Fontes de conteúdo). */
     val sources: StateFlow<List<SourceInfo>> = sourcesRepo.sources
+
+    private val _episodes = MutableStateFlow<SeriesEpisodes?>(null)
+
+    /** Série aberta esperando a pessoa escolher o episódio (null = nenhuma). */
+    val episodes: StateFlow<SeriesEpisodes?> = _episodes.asStateFlow()
 
     private val _playing = MutableStateFlow<PlaybackRequest?>(null)
 
@@ -113,6 +125,9 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun addFileSource(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit): ImportResult =
         sourcesRepo.addFile(name, uri, onProgress)
 
+    suspend fun addProviderSource(name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit): ImportResult =
+        sourcesRepo.addProvider(name, login, onProgress)
+
     suspend fun refreshSource(id: Long): ImportResult = sourcesRepo.refresh(id)
 
     fun removeSource(id: Long) {
@@ -150,9 +165,41 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** Abre o player para este item; se não houver vídeo para ele, chama [onUnavailable]. */
     fun play(id: String, onUnavailable: () -> Unit) {
         viewModelScope.launch {
+            // Episódio salvo no histórico ("f1-5-e401"): busca a série e toca direto aquele episódio.
+            val episodeId = id.substringAfter("-e", missingDelimiterValue = "").takeIf { id.startsWith(SourcesRepository.ID_PREFIX) && it.isNotEmpty() }
+            if (episodeId != null) {
+                val seriesItem = id.substringBeforeLast("-e")
+                val series = sourcesRepo.playback(seriesItem)
+                val episode = sourcesRepo.episodes(seriesItem).firstOrNull { it.id == episodeId }
+                if (series == null || episode == null) onUnavailable() else playEpisode(SeriesEpisodes(seriesItem, series.title, emptyList()), episode)
+                return@launch
+            }
             val request = DemoContent.playbackFor(id) ?: sourcesRepo.playback(id)
-            if (request == null) onUnavailable() else _playing.value = request
+            when {
+                request == null -> onUnavailable()
+                request.url.startsWith(XtreamClient.SERIES_PREFIX) -> {
+                    val list = sourcesRepo.episodes(id)
+                    if (list.isEmpty()) onUnavailable() else _episodes.value = SeriesEpisodes(id, request.title, list)
+                }
+                else -> _playing.value = request
+            }
         }
+    }
+
+    fun playEpisode(series: SeriesEpisodes, episode: Episode) {
+        _episodes.value = null
+        _playing.value = PlaybackRequest(
+            id = "${series.itemId}-e${episode.id}",
+            title = "${series.title} · ${episode.label}",
+            subtitle = null,
+            url = episode.url,
+            mimeType = null,
+            imageUrl = null,
+        )
+    }
+
+    fun closeEpisodes() {
+        _episodes.value = null
     }
 
     fun closePlayer() {
