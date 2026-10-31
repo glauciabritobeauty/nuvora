@@ -402,3 +402,9 @@ nenhuma função removida.
 - **Medição:** provedor grande simulado (`ci/provedor_grande.py`: 8.000 canais, 30.000 filmes, 6.000 séries) com todo o tráfego
   limitado a 8 Mbit/s e 60 ms de atraso; vídeos locais (HLS e MP4 de 2 Mbit/s). `ci/medir.sh` mede as duas versões no mesmo emulador.
 - Os testes de funcionamento (`ci/telas.sh`) passam a rodar na versão otimizada (a que vai para o aparelho).
+- **31/10 — resultado parcial (1ª rodada de medição, celular):** APK 16,8 MB → 2,4 MB (com perfis de inicialização dentro);
+  1ª abertura 5,9 s → 2,0 s; memória na Home 64 MB → 34 MB; abertura com conteúdo 2,1 s → 2,0 s (ainda sem lista grande).
+  Login, conteúdo, Home e início do vídeo NÃO foram medidos: os scripts de teste estavam com quebra de linha do Windows (corrigido).
+  Testes de funcionamento da versão otimizada ainda NÃO rodaram pelo mesmo motivo. APK ainda não entregue.
+- **Bloqueio:** o GitHub parou de rodar a nuvem ("pagamentos recentes falharam ou limite de gastos precisa ser aumentado"):
+  os minutos grátis do mês da conta acabaram. Decisão da Glaucia pendente.
