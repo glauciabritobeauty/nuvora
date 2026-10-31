@@ -2,13 +2,13 @@ package com.nuvora.core.data.sources
 
 import android.content.ContentValues
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.Immutable
+import com.nuvora.core.data.diagnosticsEnabled
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.HeroItem
 import com.nuvora.core.data.model.PlaybackRequest
@@ -112,7 +112,7 @@ private class SourcesDatabase(context: Context) : SQLiteOpenHelper(context, "fon
 class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     private val appContext = context.applicationContext
     private val database = SourcesDatabase(appContext)
-    private val debug = appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    private val debug = diagnosticsEnabled(appContext)
 
     private val _sources = MutableStateFlow<List<SourceInfo>>(emptyList())
     val sources: StateFlow<List<SourceInfo>> = _sources.asStateFlow()
@@ -186,6 +186,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
 
     /** Amostra para a Home: alguns itens de cada uma das primeiras categorias. */
     suspend fun loadCatalog(perCategory: Int = 40, maxCategories: Int = 30): SourceCatalog = io {
+        val started = SystemClock.elapsedRealtime()
         val db = database.readableDatabase
         val categories = db.rawQuery(
             "SELECT grupo FROM itens WHERE grupo IS NOT NULL GROUP BY grupo ORDER BY MIN(fonte_id * 10000000 + posicao) LIMIT ?",
@@ -194,6 +195,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         val items = ArrayList<CardItem>()
         categories.forEach { group -> items += query("WHERE grupo = ? ORDER BY fonte_id, posicao LIMIT ?", group, perCategory.toString()) }
         if (items.isEmpty()) items += query("ORDER BY fonte_id, posicao LIMIT ?", perCategory.toString())
+        if (debug) Log.i("NuvoraFontes", "medida home ${items.size} cartoes ${SystemClock.elapsedRealtime() - started} ms")
         SourceCatalog(
             hero = items.take(3).map { HeroItem(it.id, it.title, it.category ?: "Da sua lista", null) },
             categories = categories,
@@ -328,8 +330,12 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     private fun importProvider(login: ProviderLogin, onProgress: (ImportProgress) -> Unit, emit: (M3uEntry) -> Unit): M3uSummary {
         val client = XtreamClient(login) { url -> downloadToCache(url) {} }
         onProgress(ImportProgress.Step("Conferindo usuário e senha..."))
+        var mark = SystemClock.elapsedRealtime()
         client.checkLogin()
+        if (debug) Log.i("NuvoraFontes", "medida login ${SystemClock.elapsedRealtime() - mark} ms")
+        mark = SystemClock.elapsedRealtime()
         val count = client.importAll({ onProgress(ImportProgress.Step(it)) }, emit)
+        if (debug) Log.i("NuvoraFontes", "medida conteudo $count itens ${SystemClock.elapsedRealtime() - mark} ms")
         return M3uSummary(looksLikeM3u = true, entries = count)
     }
 
@@ -367,6 +373,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                     }
                 }
                 if (debug && attempt > 1) Log.i("NuvoraFontes", "lista baixada na tentativa $attempt")
+                if (debug) Log.i("NuvoraFontes", "medida baixou ${file.length() / 1024} KB")
                 return file.inputStream()
             } catch (definitive: ImportException) {
                 throw definitive // respostas claras do provedor (404, 403, limite...) não adiantam repetir

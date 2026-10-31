@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Anotações de teste e medição no registro do Android (nunca com senhas ou endereços).
+         Desligadas na versão final; o app liga nas versões de teste (debug e otimizada). -->
+    <bool name="nuvora_diagnostico">false</bool>
+</resources>

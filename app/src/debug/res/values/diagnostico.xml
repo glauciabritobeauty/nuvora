@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Versão de teste: liga as anotações de teste e medição (sem senhas nem endereços). -->
+    <bool name="nuvora_diagnostico">true</bool>
+</resources>

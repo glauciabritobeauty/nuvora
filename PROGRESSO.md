@@ -389,3 +389,16 @@ Causas encontradas no código (por ordem de impacto):
 Observação: muitos apps como o CasaTV vêm com o servidor do revendedor já embutido (por isso pedem só usuário e senha) — hipótese, não verificada.
 
 Plano proposto (visual intocado): A) versão de teste otimizada (release + R8 + Baseline Profile); B) provedor sob demanda (login → categorias → itens por categoria, cache e atualização em segundo plano, plano B get.php, mensagens certas); C) lista por link progressiva e enxuta; D) Home instantânea (índices, categorias prontas, última Home guardada); E) player mais rápido (tipo do vídeo, buffer de ao vivo, troca de canal sem recriar); F) medição com provedor grande simulado e internet limitada a 8 Mega no emulador.
+
+## Otimização — Fase A (versão otimizada) — em andamento (31/10/2026)
+Autorizada pela Glaucia com condições: sem redesign, uma etapa por vez, versão de segurança antes, medições antes/depois
+(abertura, autenticação, categorias, início do vídeo) com internet de 8 Mega, APK para testar antes da próxima fase,
+nenhuma função removida.
+- **Versão de segurança:** etiqueta git `seguranca-0.8.1-antes-otimizacao` (código exatamente como estava) e o APK
+  `apk/seguranca/nuvora-0.8.1-antes-otimizacao.apk`. Para voltar: reinstalar esse APK (mesma chave) e/ou voltar o código à etiqueta.
+- **Estado antes:** 0.8.1 (versionCode 13), APK de teste "debug" de 16,8 MB.
+- **O que muda na Fase A:** nova versão de teste "otimizada" (R8, sem modo de depuração, perfis de inicialização das bibliotecas),
+  com a mesma chave, a demonstração e as anotações de teste (só tempos e eventos, nunca senhas/endereços). Visual e funções iguais.
+- **Medição:** provedor grande simulado (`ci/provedor_grande.py`: 8.000 canais, 30.000 filmes, 6.000 séries) com todo o tráfego
+  limitado a 8 Mbit/s e 60 ms de atraso; vídeos locais (HLS e MP4 de 2 Mbit/s). `ci/medir.sh` mede as duas versões no mesmo emulador.
+- Os testes de funcionamento (`ci/telas.sh`) passam a rodar na versão otimizada (a que vai para o aparelho).

@@ -10,6 +10,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
@@ -125,6 +126,7 @@ fun NuvoraPlayerScreen(
     val isTv = NuvoraTheme.isTv
     val saveProgress by rememberUpdatedState(onSaveProgress)
 
+    val openedAt = remember(request.id) { SystemClock.elapsedRealtime() }
     val player = remember(request.id) { createPlayer(context, request, startPositionMs, subtitleMode) }
     val diag = remember { PlayerDiagnostics(context) }
     var isPlaying by remember { mutableStateOf(false) }
@@ -192,6 +194,10 @@ fun NuvoraPlayerScreen(
                 failure.value = error.toFailure()
                 diag.log("falha=${failure.value}")
                 controlsVisible = false
+            }
+
+            override fun onRenderedFirstFrame() {
+                diag.log("medida primeiro quadro ${SystemClock.elapsedRealtime() - openedAt} ms")
             }
 
             override fun onCues(cueGroup: CueGroup) {

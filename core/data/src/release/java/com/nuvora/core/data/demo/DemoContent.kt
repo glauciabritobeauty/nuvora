@@ -7,7 +7,8 @@ import com.nuvora.core.data.model.PlaybackRequest
 
 /** Versão final: sem demonstração. */
 object DemoContent {
-    const val AVAILABLE = false
+    // "val" (e não "const"): as telas leem o valor da versão em uso (debug, otimizada ou final), sem fixá-lo na compilação.
+    val AVAILABLE = false
     const val ID_PREFIX = "demo-"
 
     val categories: List<String> = emptyList()

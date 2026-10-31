@@ -11,7 +11,8 @@ import com.nuvora.core.data.model.PlaybackRequest
  * A versão final usa o arquivo de src/release, que não tem demonstração.
  */
 object DemoContent {
-    const val AVAILABLE = true
+    // "val" (e não "const"): as telas leem o valor da versão em uso (debug, otimizada ou final), sem fixá-lo na compilação.
+    val AVAILABLE = true
     const val ID_PREFIX = "demo-"
 
     val categories = listOf("Filmes", "Séries", "Ao vivo", "Documentários")

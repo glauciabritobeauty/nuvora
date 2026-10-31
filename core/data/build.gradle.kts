@@ -10,6 +10,16 @@ android {
         minSdk = 23
     }
 
+    buildTypes {
+        // Versão de teste otimizada: código de versão final, mas com a demonstração da versão de teste.
+        create("otimizada") {
+            initWith(getByName("release"))
+        }
+    }
+    sourceSets {
+        getByName("otimizada").java.srcDir("src/debug/java")
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -10,10 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.first
 import com.nuvora.core.data.NuvoraViewModel
+import com.nuvora.core.data.model.HomeUiState
 import com.nuvora.designsystem.theme.NuvoraTheme
 import com.nuvora.feature.mobile.MobileApp
 import com.nuvora.feature.tv.TvApp
@@ -31,6 +34,11 @@ class MainActivity : ComponentActivity() {
             // O mesmo "cérebro" que as telas usam (um só para o app aberto); aqui só lemos a "Letra maior".
             val viewModel: NuvoraViewModel = viewModel()
             val largeText by viewModel.largeText.collectAsStateWithLifecycle()
+            // Avisa o Android quando a primeira tela útil (Home ou boas-vindas) está pronta: é o "tempo de abertura" medido.
+            LaunchedEffect(Unit) {
+                viewModel.state.first { it.home !is HomeUiState.Loading }
+                reportFullyDrawn()
+            }
             NuvoraTheme(isTv = isTv, largeText = largeText) {
                 if (isTv) TvApp(versionName = BuildConfig.VERSION_NAME) else MobileApp(versionName = BuildConfig.VERSION_NAME)
             }

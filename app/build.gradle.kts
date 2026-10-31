@@ -11,8 +11,8 @@ android {
         applicationId = "com.nuvora.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.8.1"
+        versionCode = 14
+        versionName = "0.9.0"
     }
 
     // Chave fixa das versões de teste (vem dos segredos do GitHub na compilação na nuvem).
@@ -37,6 +37,14 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Versão de teste OTIMIZADA (a que vai para o aparelho da Glaucia): o mesmo motor rápido da versão final
+        // (R8, sem modo de depuração, perfis de inicialização), com a demonstração e as medições da versão de teste.
+        // Mesma chave da versão de teste: instala por cima sem apagar as listas.
+        create("otimizada") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            if (testKeystore != null) signingConfig = signingConfigs.getByName("teste")
         }
     }
 
