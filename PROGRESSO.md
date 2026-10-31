@@ -13,6 +13,11 @@ Arquivo vivo: decisões, etapas aprovadas, testes e pendências. Atualizado a ca
 - Etapa 7 — **Parte 1 entregue** (listas M3U por link e arquivo). Falta a Glaucia aprovar a Parte 1 para começar a Parte 2 (Provedor/Usuário/Senha + QR Code na TV).
 - APK: `apk/nuvora-etapa7-parte2a.apk` — Parte 2 em andamento: Provedor/Usuário/Senha e boas-vindas prontos e testados; falta o QR Code na TV.
 
+## Mudança de direção pedida pela Glaucia (31/10/2026)
+- A Glaucia quer que eu assuma a responsabilidade técnica do produto como um todo, e não só corrija detalhes: entender a referência (app CasaTV), comparar com o NUVORA atual, apresentar o que falta, e só então implementar, testar e validar por fases. Aproveitar o que já funciona; não recomeçar.
+- Referência: o CasaTV.apk **não será aberto nem descompilado** (direitos de terceiros e segurança). Alternativa combinada: a Glaucia envia capturas de tela/gravação de tela do CasaTV em uso (celular e TV), e eu analiso a experiência (organização, navegação, apresentação, player, controle remoto, leveza) para criar uma solução própria do NUVORA.
+- Implementação pausada até a Glaucia aprovar o entendimento e a proposta de direção.
+
 ## Situação das etapas
 | Etapa | Descrição | Situação |
 |---|---|---|
