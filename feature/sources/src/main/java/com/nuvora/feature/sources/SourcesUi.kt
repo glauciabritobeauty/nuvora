@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -173,8 +176,9 @@ private sealed interface SaveStatus {
  * com botão para copiar e mandar ao suporte. Usuário e senha nunca aparecem (vêm como •••).
  */
 @Composable
-private fun ReportPanel(report: ConnectionReport) {
+private fun ReportPanel(report: ConnectionReport, buttonFocus: FocusRequester? = null) {
     val colors = NuvoraTheme.colors
+    val isTv = NuvoraTheme.isTv
     val context = LocalContext.current
     var open by rememberSaveable { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
@@ -183,6 +187,7 @@ private fun ReportPanel(report: ConnectionReport) {
         icon = NuvoraIcons.File,
         style = NuvoraButtonStyle.Secondary,
         onClick = { open = !open },
+        modifier = if (buttonFocus != null) Modifier.focusRequester(buttonFocus) else Modifier,
     )
     if (!open) return
     Card {
@@ -194,19 +199,28 @@ private fun ReportPanel(report: ConnectionReport) {
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
         )
         report.steps.forEachIndexed { index, step ->
-            NuvoraText(
-                "${index + 1}. ${step.title}: ${if (step.ok) "ok" else "falhou"}",
-                NuvoraTheme.typography.caption,
-                color = if (step.ok) colors.accent else colors.error,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            step.request?.let { NuvoraText("Pedido: $it", NuvoraTheme.typography.caption, color = colors.textSecondary) }
-            NuvoraText("Resposta: ${step.result}", NuvoraTheme.typography.caption, color = colors.textSecondary)
+            // Na TV cada passo recebe o foco do controle, para dar para rolar o relatório inteiro com as setas.
+            StepFocus(isTv) {
+                Column(Modifier.padding(if (isTv) 6.dp else 0.dp)) {
+                    NuvoraText(
+                        "${index + 1}. ${step.title}: ${if (step.ok) "ok" else "falhou"}",
+                        NuvoraTheme.typography.caption,
+                        color = if (step.ok) colors.accent else colors.error,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    step.request?.let { NuvoraText("Pedido: $it", NuvoraTheme.typography.caption, color = colors.textSecondary) }
+                    NuvoraText("Resposta: ${step.result}", NuvoraTheme.typography.caption, color = colors.textSecondary)
+                }
+            }
         }
-        report.problem?.let {
-            NuvoraText("Tipo do problema: ${it.label}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 10.dp))
+        StepFocus(isTv) {
+            Column(Modifier.padding(if (isTv) 6.dp else 0.dp)) {
+                report.problem?.let {
+                    NuvoraText("Tipo do problema: ${it.label}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 10.dp))
+                }
+                NuvoraText("Conclusão: ${report.conclusion}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp))
+            }
         }
-        NuvoraText("Conclusão: ${report.conclusion}", NuvoraTheme.typography.caption, color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp))
         Box(Modifier.padding(top = 12.dp)) {
             NuvoraButton(
                 text = if (copied) "Relatório copiado" else "Copiar relatório",
@@ -234,6 +248,7 @@ private fun ReportPanel(report: ConnectionReport) {
  * Tela "Adicionar lista": link ou arquivo, nome, confirmação de direito de acesso e "Testar e salvar".
  * Na TV só aparece o link (TVs normalmente não têm onde escolher arquivos).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AddSourceScreen(
     onSaveLink: suspend (name: String, url: String, onProgress: (ImportProgress) -> Unit) -> ImportResult,
@@ -265,6 +280,15 @@ fun AddSourceScreen(
     var progress by remember { mutableStateOf<ImportProgress?>(null) }
     val firstField = remember { FocusRequester() }
     val firstChoice = remember { FocusRequester() }
+    val resultFocus = remember { FocusRequester() }
+    val resultView = remember { BringIntoViewRequester() }
+    // Quando o resultado chega, ele aparece na tela (e na TV o foco vai para o botão logo abaixo da mensagem).
+    LaunchedEffect(status) {
+        if (status is SaveStatus.Done || status is SaveStatus.Failed) {
+            runCatching { resultView.bringIntoView() }
+            if (isTv) runCatching { resultFocus.requestFocus() }
+        }
+    }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -306,7 +330,7 @@ fun AddSourceScreen(
                 is SaveStatus.Done -> {
                     NuvoraText("Pronto! ${formatCount(current.count)} itens encontrados.", NuvoraTheme.typography.title, color = colors.accent)
                     NuvoraText("A sua lista já aparece no Início.", NuvoraTheme.typography.body, color = colors.textSecondary)
-                    NuvoraButton(text = "Ir para o Início", icon = NuvoraIcons.Home, onClick = onFinished)
+                    NuvoraButton(text = "Ir para o Início", icon = NuvoraIcons.Home, onClick = onFinished, modifier = Modifier.focusRequester(resultFocus))
                     current.report?.let { ReportPanel(it) }
                     return@Column
                 }
@@ -391,14 +415,14 @@ fun AddSourceScreen(
             RightsCheck(agreed) { agreed = !agreed; formError = null }
             formError?.let { NuvoraText(it, NuvoraTheme.typography.body, color = colors.error) }
             (status as? SaveStatus.Failed)?.let {
-                NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error)
+                NuvoraText(it.message, NuvoraTheme.typography.body, color = colors.error, modifier = Modifier.bringIntoViewRequester(resultView))
                 it.report?.problem?.let { problem ->
                     NuvoraText("Tipo do problema: ${problem.label}", NuvoraTheme.typography.caption, color = colors.textPrimary)
                 }
                 it.detail?.let { detail ->
                     NuvoraText("Detalhe técnico: $detail", NuvoraTheme.typography.caption, color = colors.textSecondary)
                 }
-                it.report?.let { report -> ReportPanel(report) }
+                it.report?.let { report -> ReportPanel(report, resultFocus) }
             }
             if (status == SaveStatus.Working) {
                 NuvoraText(
@@ -479,6 +503,13 @@ private fun ChoiceButton(
             }
         }
     }
+}
+
+/** Na TV, deixa um trecho de texto receber o foco do controle (só para rolar a tela até ele). */
+@Composable
+private fun StepFocus(isTv: Boolean, content: @Composable () -> Unit) {
+    if (!isTv) return content()
+    NuvoraClickable(onClick = {}, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) { content() }
 }
 
 /** Caixa de confirmação: "Tenho direito de acesso a este conteúdo." */

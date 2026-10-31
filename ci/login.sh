@@ -20,9 +20,9 @@ SENHA="Ab12cd"
 flog() { adb logcat -d -s NuvoraFontes:I | sed 's/.*NuvoraFontes: //'; }
 falha() { echo "FALHOU: $1" >> "$STEPS"; }
 
-# Confere se algum texto na tela CONTÉM $1 (rola a tela até 6 vezes procurando).
+# Confere se algum texto na tela CONTÉM $1 (rola a tela até 10 vezes procurando).
 check_contains() {
-  for i in 1 2 3 4 5 6; do
+  for i in 1 2 3 4 5 6 7 8 9 10; do
     read_ui
     if grep -qF "$1" ui.xml; then echo "ok: tela contém '$1'" >> "$STEPS"; return 0; fi
     if [ "$NAME" = "tv" ]; then key $D; else adb shell input swipe 500 1500 500 700 300; sleep 1; fi
