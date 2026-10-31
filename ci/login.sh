@@ -93,7 +93,7 @@ open_report; shot login-2-relatorio
 check_contains "Recursos do provedor: ok"
 check_secret "sololink" "cenário 2"
 save_report 2-so-link
-if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else tap_text "Ir para o Início"; fi
+if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else for i in 1 2 3 4 5 6; do adb shell input swipe 500 700 500 1500 300; done; tap_text "Ir para o Início"; fi
 sleep 5; shot login-2-home
 check_contains "Abertos"
 play_hero 2 "canal do provedor (plano B)"
@@ -105,7 +105,7 @@ wait_text "Pronto! 25 itens encontrados." 90; shot login-3-pronto
 open_report; shot login-3-relatorio
 check_contains "Recursos do provedor: pedir canais de uma categoria só: ok"
 save_report 3-padrao
-if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else tap_text "Ir para o Início"; fi
+if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else for i in 1 2 3 4 5 6; do adb shell input swipe 500 700 500 1500 300; done; tap_text "Ir para o Início"; fi
 sleep 5; shot login-3-home
 check_contains "TV · Abertos"
 play_hero 3 "canal do provedor (padrão)"
