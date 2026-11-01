@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -90,8 +90,9 @@ fun DetailsScreen(
         ) {
             NuvoraButton(text = "Voltar", icon = NuvoraIcons.ChevronLeft, style = NuvoraButtonStyle.Secondary, onClick = onBack)
             Row(horizontalArrangement = Arrangement.spacedBy(if (isTv) 32.dp else 16.dp)) {
-                Box(Modifier.widthIn(max = if (isTv) 220.dp else 130.dp).fillMaxWidth(if (isTv) 0.22f else 0.38f)) {
-                    CoverCard(title = state.title, imageUrl = info?.cover ?: state.imageUrl, rating = null, onClick = {})
+                // Capa em tamanho fixo (o nome já está ao lado, então não vai escrito em cima dela).
+                Box(Modifier.width(if (isTv) 200.dp else 128.dp)) {
+                    CoverCard(title = "", imageUrl = info?.cover ?: state.imageUrl, rating = null, onClick = {})
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     NuvoraText(state.title, NuvoraTheme.typography.title, maxLines = 4)
