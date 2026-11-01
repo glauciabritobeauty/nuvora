@@ -528,3 +528,17 @@ Testes: login 47/22 ok sem falhas; telas tablet e TV sem falhas, celular só as 
 - Leituras no aparelho: 1–50 ms (abrir parte, categoria já baixada, "Todos").
 - Conta de teste (is_trial=1) vence em 01/11/2026.
 - Ajuste para a próxima rodada: o cronômetro anota "N categorias em X ms" a cada lote que chega (polui o relatório e empurra para fora as linhas de abrir o app e de vídeo) → anotar só a 1ª abertura de cada parte.
+
+## Fase E (parte 1): vídeo começando mais rápido (v0.9.6) — testada no emulador, aguardando cronômetro do aparelho
+Versão de segurança: tag `seguranca-0.9.5-antes-player` + `apk/seguranca/nuvora-0.9.5-fluidez.apk`.
+- Provedor que desvia https → http no mesmo site (o da Glaucia faz isso): o endereço final é guardado e usado direto em pedidos e vídeos (sem desvio nem aperto de mão de segurança). Vale para quem entrar de novo ou tocar em Atualizar.
+- Tipo do vídeo pelo endereço (m3u8/mp4/mkv/ts/mpd); começa com 1 s guardado (antes 1,5 s); canais .ts podem começar sem esperar o quadro inicial.
+- Cronômetro: cada parte só uma vez por sessão; vídeo anota tipo (canal/filme/episódio) e http/https.
+- Servidor de teste agora atende Range (como os reais): a medição anterior do filme (8 s) era do teste, que mandava o arquivo inteiro ao continuar de onde parou.
+Medição a 8 Mega (3 aberturas cada, emulador):
+| | Celular | TV |
+|---|---|---|
+| Filme começar | 1,9 / 3,3 / 2,3 s (antes ~8 s) | 0,7 / 1,3 / 1,5 s |
+| Canal (HLS) começar | 3,1 / 4,7 / 5,5 s | 3,0 / 3,0 / 1,8 s |
+Canal no emulador varia muito entre rodadas (na rodada anterior TV 3,8 / 1,0 / 0,8 s); precisa do cronômetro do aparelho real para decidir o próximo passo (ex.: manter o player aberto ao trocar de canal).
+Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
