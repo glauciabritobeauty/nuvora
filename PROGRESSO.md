@@ -542,3 +542,9 @@ Medição a 8 Mega (3 aberturas cada, emulador):
 | Canal (HLS) começar | 3,1 / 4,7 / 5,5 s | 3,0 / 3,0 / 1,8 s |
 Canal no emulador varia muito entre rodadas (na rodada anterior TV 3,8 / 1,0 / 0,8 s); precisa do cronômetro do aparelho real para decidir o próximo passo (ex.: manter o player aberto ao trocar de canal).
 Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
+
+### Cronômetro do aparelho real (01/11/2026 16:26, 0.9.6, Android 16, celular)
+- Abrir o app até a tela de escolha: 0,30 s. Login 1,06 s (o servidor salvo ainda é o https digitado; a 1ª ida desvia para http) + categorias 0,15–0,31 s.
+- Categoria de filmes buscada no provedor: 0,41 s (448 itens). Categoria já no aparelho: 23 ms (1.067 séries). "Todos" da TV: 31 ms (906 canais).
+- Vídeo: canal 0,88 s; episódio 1,33 s; filmes 2,45 s e 3,59 s.
+- Ideia pequena para depois: guardar como "servidor salvo" o endereço final (http) para o login também pular o desvio (~0,5–0,7 s).
