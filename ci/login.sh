@@ -128,6 +128,10 @@ if [ "$NAME" != "tv" ]; then
   tap_text "Esportes"; wait_text "Canal Intermediário 6" 30; shot login-3-esportes
   tap_text "Voltar"; sleep 2
   tap_text "Filmes"; wait_text "Filme Intermediário 1" 60; shot login-3-filmes
+  # Filme abre a tela de detalhes (com Assistir e Favoritar).
+  tap_card "Filme Intermediário 1"; sleep 4; shot login-3-detalhes
+  check_text "Assistir" sim
+  key KEYCODE_BACK; sleep 2
 fi
 grep "action=" intermediario.log 2> /dev/null | tail -20 | sed 's/^/  provedor recebeu: /' >> "$STEPS" || true
 

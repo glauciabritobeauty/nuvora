@@ -91,8 +91,10 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val details by viewModel.details.collectAsStateWithLifecycle()
     // Filme aberto nos detalhes: o vídeo já vai sendo preparado por trás (começa mais rápido no Assistir).
     val detailsRequest = details?.request
-    LaunchedEffect(detailsRequest?.url) {
-        detailsRequest?.let { PlayerWarmup.prepare(context, it, viewModel.resumePositionFor(it.id), subtitleMode) }
+    // Também prepara de novo ao voltar do vídeo para os detalhes (para assistir de novo sem esperar).
+    val watching = viewModel.playing.collectAsStateWithLifecycle().value != null
+    LaunchedEffect(detailsRequest?.url, watching) {
+        if (!watching) detailsRequest?.let { PlayerWarmup.prepare(context, it, viewModel.resumePositionFor(it.id), subtitleMode) }
     }
     val closeDetails = {
         PlayerWarmup.release()
