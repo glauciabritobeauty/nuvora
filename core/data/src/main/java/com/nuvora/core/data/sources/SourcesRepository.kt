@@ -259,10 +259,63 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         publishReport()
     }
 
-    suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
-        importFrom(sourceId = null, name = name, kind = SourceKind.Link, address = url.trim(), onProgress = onProgress) { emit ->
-            m3u(downloadToCache(url.trim(), onProgress), emit)
+    /**
+     * Link da lista. Se for o link padrão dos provedores (get.php com usuário e senha dentro), entra pelo
+     * caminho rápido do Provedor/Usuário/Senha. Senão, confere que o link responde com uma lista, libera a
+     * tela de escolha na hora e lê a lista aos poucos em segundo plano ([loadPending]).
+     */
+    suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult {
+        val link = url.trim()
+        parseProviderLink(link)?.let { return addProvider(name, it, onProgress) }
+        return io { startLink(sourceId = null, name = name, link = link, onProgress = onProgress) }
+    }
+
+    /** Confere que o link responde com uma lista (só o começo dela) e guarda, ainda sem itens. */
+    private fun startLink(sourceId: Long?, name: String, link: String, onProgress: (ImportProgress) -> Unit): ImportResult {
+        onProgress(ImportProgress.Step("Conferindo o link..."))
+        try {
+            openUrl(link).use { input ->
+                val head = ByteArray(8 * 1024)
+                var filled = 0
+                while (filled < head.size) {
+                    val read = input.read(head, filled, head.size - filled)
+                    if (read < 0) break
+                    filled += read
+                }
+                val text = String(head, 0, filled, Charsets.UTF_8)
+                if (!text.contains("#EXTM3U", ignoreCase = true) && !text.contains("#EXTINF", ignoreCase = true)) {
+                    return ImportResult.Failure(if (filled == 0) ImportFailure.Empty else ImportFailure.NotAList)
+                }
+            }
+        } catch (e: Exception) {
+            return failureOf(e, SourceKind.Link)
         }
+        val db = database.writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues().apply {
+                put("nome", name.trim().ifEmpty { runCatching { java.net.URI(link).host }.getOrNull() ?: "Minha lista" })
+                put("tipo", SourceKind.Link.key)
+                put("endereco_cifrado", crypto.encrypt(link))
+                put("itens", 0)
+                put("atualizado_em", System.currentTimeMillis())
+                put("completa", 0)
+                put("conta", JSONObject().put("modo", "m3u").toString())
+            }
+            if (sourceId == null) {
+                db.insert("fontes", null, values)
+            } else {
+                db.delete("itens", "fonte_id = ?", arrayOf(sourceId.toString()))
+                db.delete("categorias", "fonte_id = ?", arrayOf(sourceId.toString()))
+                db.update("fontes", values, "id = ?", arrayOf(sourceId.toString()))
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        refreshSources()
+        _changes.value++
+        return ImportResult.Success(0)
     }
 
     /** Provedor / Usuário / Senha: confere o acesso e busca canais, filmes e séries. */
@@ -323,12 +376,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             val login = decodeLogin(address)
             return@io connectProvider(id, name, login, ReportBuilder(login.user, login.password, reportHeader())) {}
         }
-        importFrom(sourceId = id, name = name, kind = kind, address = address) { emit ->
-            when (kind) {
-                SourceKind.Link -> m3u(downloadToCache(address) {}, emit)
-                else -> m3u(openFile(Uri.parse(address)), emit)
-            }
-        }
+        if (kind == SourceKind.Link) return@io startLink(id, name, address) {}
+        importFrom(sourceId = id, name = name, kind = kind, address = address) { emit -> m3u(openFile(Uri.parse(address)), emit) }
     }
 
     suspend fun remove(id: Long) = withContext(Dispatchers.IO) { categoryLock.withLock { removeLocked(id) } }
@@ -727,20 +776,37 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
      * Pode ser interrompido a qualquer momento (sair da conta, fechar o app): continua de onde parou depois.
      */
     suspend fun loadPending() = withContext(backgroundDispatcher) {
-        val pending = database.readableDatabase.rawQuery(
-            "SELECT id, endereco_cifrado, conta FROM fontes WHERE completa = 0 AND tipo = ? ORDER BY id",
-            arrayOf(SourceKind.Provider.key),
-        ).use { c -> buildList { while (c.moveToNext()) add(Triple(c.getLong(0), c.getString(1), c.getString(2))) } }
-        for ((id, address, accountText) in pending) {
+        val skipped = HashSet<Long>()
+        while (true) {
+            // Uma lista por vez; uma lista nova (adicionada no meio do caminho) também entra na fila.
+            val (id, kind, address, accountText) = database.readableDatabase.rawQuery(
+                "SELECT id, tipo, endereco_cifrado, conta FROM fontes WHERE completa = 0 AND tipo IN (?, ?) ORDER BY id",
+                arrayOf(SourceKind.Provider.key, SourceKind.Link.key),
+            ).use { c ->
+                var found: PendingSource? = null
+                while (found == null && c.moveToNext()) {
+                    if (c.getLong(0) !in skipped) found = PendingSource(c.getLong(0), c.getString(1), c.getString(2), c.getString(3))
+                }
+                found
+            } ?: break
             val account = runCatching { JSONObject(accountText ?: "{}") }.getOrDefault(JSONObject())
-            val login = runCatching { decodeLogin(crypto.decrypt(address)) }.getOrNull() ?: continue
-            val ok = if (account.optString("modo") == "lista") {
-                loadFullList(id, login, account.optString("variante", XtreamClient.LIST_VARIANTS.first()))
-            } else {
-                loadAllCategories(id)
+            val plain = runCatching { crypto.decrypt(address) }.getOrNull()
+            if (plain == null) {
+                skipped += id
+                continue
+            }
+            val ok = when {
+                kind == SourceKind.Link.key -> loadFullList(id, plain)
+                account.optString("modo") == "lista" -> loadFullList(
+                    id,
+                    XtreamClient(decodeLogin(plain)) { downloadToCache(it) {} }.fullListUrl(account.optString("variante", XtreamClient.LIST_VARIANTS.first())),
+                )
+                else -> loadAllCategories(id)
             }
             if (!ok) {
                 _loading.value = _loading.value?.copy(failed = true) ?: LoadProgress(0, 0, 0, failed = true)
+                refreshSources()
+                _changes.value++
                 return@withContext
             }
             database.writableDatabase.execSQL("UPDATE fontes SET completa = 1, atualizado_em = ? WHERE id = ?", arrayOf<Any>(System.currentTimeMillis(), id))
@@ -794,8 +860,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
      * Plano B: lê a lista completa direto da conexão, gravando de 2.000 em 2.000 itens.
      * A tela de escolha já mostra cada lote que chega; se a conexão cair, recomeça (até 3 vezes).
      */
-    private suspend fun loadFullList(id: Long, login: ProviderLogin, variant: String): Boolean {
-        val url = XtreamClient(login) { downloadToCache(it) {} }.fullListUrl(variant)
+    private suspend fun loadFullList(id: Long, url: String): Boolean {
         for (attempt in 1..3) {
             kotlinx.coroutines.yield()
             val db = database.writableDatabase
@@ -845,6 +910,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     }
 
     private class CategoryLoad(val items: Int, val filtered: Boolean)
+
+    private data class PendingSource(val id: Long, val kind: String, val address: String, val account: String?)
 
     private fun isLoaded(sourceId: Long, kind: SectionKind, categoryId: String) = database.readableDatabase.rawQuery(
         "SELECT carregada FROM categorias WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",

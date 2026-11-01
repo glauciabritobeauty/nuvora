@@ -266,7 +266,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     // ---- Listas ----
 
     suspend fun addLinkSource(name: String, url: String, onProgress: (ImportProgress) -> Unit): ImportResult =
-        sourcesRepo.addLink(name, url, onProgress)
+        sourcesRepo.addLink(name, url, onProgress).also { if (it is ImportResult.Success) loadInBackground() }
 
     suspend fun addFileSource(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit): ImportResult =
         sourcesRepo.addFile(name, uri, onProgress)

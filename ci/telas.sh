@@ -107,8 +107,7 @@ if [ "$NAME" = "tv" ]; then
     focus "33. tela de entrada"
   fi
   link_form "http://10.0.2.2:8000/teste.m3u"
-  wait_text "Pronto! 4 itens encontrados." 30; shot 20-lista-adicionada-tv
-  focus "pronto"; focus_until "Ir para o Início" $D; key $OK; sleep 3
+  wait_text "TV ao vivo" 30; shot 20-lista-adicionada-tv; sleep 5
   focus "35. tela de escolha"; focus_until "TV ao vivo" $U; key $OK; sleep 3
   check_text "Filme HLS de teste" sim; shot 21-tv-ao-vivo-com-lista-tv
 else
@@ -214,9 +213,20 @@ else
   add_link() {
     open_add; link_form "$2"
   }
+  # Espera a anotação do app de que a lista terminou de chegar (em segundo plano).
+  wait_log() {
+    local t=0
+    while [ $t -lt "$2" ]; do
+      if adb logcat -d -s NuvoraFontes:I | grep -qE "$1"; then echo "ok: anotação '$1' em ~${t}s" >> "$STEPS"; return 0; fi
+      sleep 3; t=$((t + 3))
+    done
+    echo "FALHOU: anotação '$1' não apareceu em $2 s" >> "$STEPS"
+  }
+  adb logcat -c
   add_link "Lista%sde%steste" "http://10.0.2.2:8000/teste.m3u"
-  wait_text "Pronto! 4 itens encontrados." 30; shot 30-lista-adicionada
-  tap_text "Ir para o Início"; sleep 3; shot 31-tela-de-escolha
+  # Link: a tela de escolha abre na hora; os itens chegam por trás.
+  wait_text "TV ao vivo" 30; shot 30-lista-adicionada
+  wait_log "lista completa com 4 itens" 60; shot 31-tela-de-escolha
   tap_text "TV ao vivo"; sleep 3; check_text "Filme HLS de teste" sim; shot 31-tv-ao-vivo-com-lista
   adb logcat -c; tap_text "Filme HLS de teste"; sleep 15
   check_log "aberto id=f1-0"; check_playing "item da lista M3U"; key KEYCODE_BACK; sleep 3
@@ -224,9 +234,10 @@ else
   MEM_ANTES_LISTA=$(total_pss)
   adb logcat -c
   add_link "Lista%sgigante" "http://10.0.2.2:8000/gigante.m3u"
-  wait_text "Pronto! 20.000 itens encontrados." 180; shot 32-lista-gigante
-  adb logcat -d -s NuvoraFontes:I | sed 's/.*NuvoraFontes: /  importação: /' >> "$STEPS"
-  tap_text "Ir para o Início"; sleep 5; shot 33-home-lista-gigante
+  wait_text "TV ao vivo" 30; shot 32-lista-gigante
+  wait_log "lista completa com 20000 itens" 240
+  adb logcat -d -s NuvoraFontes:I | grep -E "segundo plano|medida" | sed 's/.*NuvoraFontes: /  importação: /' >> "$STEPS"
+  sleep 5; shot 33-home-lista-gigante
   MEM_DEPOIS_LISTA=$(total_pss)
   echo "memória (KB) com a lista de 4 itens: $MEM_ANTES_LISTA; depois de importar 20.000 itens e abrir a Home: $MEM_DEPOIS_LISTA" >> "$STEPS"
   tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Item%s19999"; key KEYCODE_BACK
@@ -237,24 +248,30 @@ else
   check_text "Detalhe técnico: HTTP 404" sim
   # Provedores "difíceis" (imitados pelo servidor de teste).
   add_link "Provedor%slento" "http://10.0.2.2:8000/lento.m3u"
-  wait_text "Pronto! 4 itens encontrados." 120; shot 36-provedor-lento
+  wait_text "TV ao vivo" 120; shot 36-provedor-lento
   add_link "Exige%snavegador" "http://10.0.2.2:8000/exige-navegador.m3u"
-  wait_text "Pronto! 4 itens encontrados." 30
+  wait_text "TV ao vivo" 30
   add_link "Redireciona" "http://10.0.2.2:8000/redireciona.m3u"
-  wait_text "Pronto! 4 itens encontrados." 30
+  wait_text "TV ao vivo" 30
   add_link "Limite" "http://10.0.2.2:8000/erro-456"
   wait_text "Detalhe técnico: HTTP 456" 30; shot 37-limite-de-conexoes
   check_text "O provedor limitou o acesso agora (muitas conexões ao mesmo tempo ou assinatura vencida). Tente mais tarde ou fale com o seu fornecedor." sim
   # Certificado inválido no https: o app tenta o http sozinho.
   adb logcat -c
   add_link "Certificado%sruim" "https://10.0.2.2/teste.m3u"
-  wait_text "Pronto! 4 itens encontrados." 40; shot 38-certificado-ruim
+  wait_text "TV ao vivo" 40; shot 38-certificado-ruim
   adb logcat -d -s NuvoraFontes:I | grep -i "certificado" | sed 's/.*NuvoraFontes: /  anotação: /' >> "$STEPS"
   # Provedor que corta a conexão no meio: o app tenta de novo sozinho.
   adb logcat -c
   add_link "Corta%sno%smeio" "http://10.0.2.2:8000/corta.m3u"
-  wait_text "Pronto! 20.000 itens encontrados." 240; shot 39-corta-no-meio
+  wait_text "TV ao vivo" 40; shot 39-corta-no-meio
+  wait_log "lista completa com 20000 itens" 300
   adb logcat -d -s NuvoraFontes:I | grep -E "caiu|tentativa" | sed 's/.*NuvoraFontes: /  anotação: /' >> "$STEPS"
+  # Link padrão dos provedores (get.php com usuário e senha dentro): entra pelo caminho rápido (categorias).
+  adb logcat -c
+  add_link "Link%sde%sprovedor" "http://10.0.2.2:8000/get.php?username=teste&password=1234&type=m3u_plus&output=hls"
+  wait_text "TV ao vivo" 40; shot 39b-link-de-provedor
+  wait_log "medida entrada [0-9]+ categorias" 10
 
   # Etapa 7 (Parte 2): Provedor, Usuário e Senha.
   add_provider() {

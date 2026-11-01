@@ -370,7 +370,8 @@ fun AddSourceScreen(
                 EntryMode.Link -> onSaveLink(linkName(link), link, onProgress)
                 EntryMode.File -> onSaveFile(fileName.orEmpty().substringBeforeLast('.'), Uri.parse(fileUri), onProgress)
             }
-            if (result is ImportResult.Success && mode == EntryMode.Login) {
+            // Usuário e senha ou link: vai direto para a tela de escolha (o resto chega por trás).
+            if (result is ImportResult.Success && mode != EntryMode.File) {
                 onFinished()
                 return@launch
             }
