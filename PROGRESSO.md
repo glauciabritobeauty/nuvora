@@ -522,3 +522,9 @@ Medição a 8 Mega (emulador, 180 categorias / 44.000 itens), cronômetro do app
 | Lista inteira no aparelho (segundo plano educado) | 96 s (antes 42) | 91 s (antes 38) |
 | Canal começar | 3,6 s | 1,4 s |
 Testes: login 47/22 ok sem falhas; telas tablet e TV sem falhas, celular só as conhecidas do menu de baixo; 0 erros. Filme pela busca segue sem medição (roteiro não acha a aba Buscar no emulador).
+
+### Primeiro relatório do aparelho real (01/11/2026, 0.9.5, Android 16, celular) — "melhorou bastante"
+- Provedor real (nactip.com) funciona no jeito padrão: login 368 ms (https redirecionado para http), categorias 52/41/30 em 0,2–0,3 s cada; aceita pedir por categoria (42 itens em 518 ms).
+- Leituras no aparelho: 1–50 ms (abrir parte, categoria já baixada, "Todos").
+- Conta de teste (is_trial=1) vence em 01/11/2026.
+- Ajuste para a próxima rodada: o cronômetro anota "N categorias em X ms" a cada lote que chega (polui o relatório e empurra para fora as linhas de abrir o app e de vídeo) → anotar só a 1ª abertura de cada parte.
