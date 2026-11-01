@@ -556,3 +556,11 @@ Versão de segurança: tag `seguranca-0.9.6-antes-link` + `apk/seguranca/nuvora-
 - Servidor errado ou sem porta (ex.: DNS de STB que a Glaucia tentou): mensagem "confira o servidor (DNS) e a porta" em vez de "não aceitou o pedido".
 - Relatório real (plus.lat, link M3U colado no servidor na 0.9.6): login 0,35 s, categorias 0,3–0,5 s; canal 2,4–2,8 s; filme 4,5–6,2 s (reabrindo 8 s); episódio 5,7 s (reabrindo 8,7 s). Vídeos deste provedor saem de outro endereço (server_info muubsaaa.online). Próximo: cronômetro detalhado do vídeo + "desviar uma vez só".
 Testes: login 47/22 ok; telas tablet 162 ok sem falhas, TV sem falhas, celular só as conhecidas do menu de baixo; link de provedor e listas difíceis ok; 0 erros. DNS de "STB / Smart UP" não é compatível (outro sistema, por MAC).
+
+## Fase E (parte 2): vídeo (v0.9.8) — testada no emulador, aguardando cronômetro do aparelho
+Versão de segurança: tag `seguranca-0.9.7-antes-video` + `apk/seguranca/nuvora-0.9.7-link.apk`.
+- Filme/episódio: desvio do provedor feito uma vez (pedido de 1 byte, até 4 s) e o player recebe o endereço final; sites sem desvio ficam lembrados. Canais ao vivo de fora (endereço final costuma expirar).
+- Servidor salvo = endereço que vale de verdade (login sem o desvio https → http).
+- Cronômetro: 1º quadro uma vez só por vídeo (o "começou 5 vezes" do episódio era o aviso repetido a cada pulo/carregamento); ao fechar: travadas, tempo parado, pulos e tempo assistido.
+Medição (emulador, provedor de teste SEM desvio — o ganho do desvio só aparece em provedor real): filme celular 1,7/3,3/3,0 s, TV 0,9/1,0/1,0 s; canal celular 6,3/5,0/5,3 s (emulador instável; no aparelho real o canal deu 0,8–1,3 s), TV 3,5/1,2/1,3 s. APK 2,5 MB; memória 35–37 MB.
+Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
