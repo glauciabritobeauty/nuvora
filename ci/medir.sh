@@ -162,13 +162,15 @@ fi
 first_frames canal open_live
 key KEYCODE_BACK; sleep 2
 
-# 5) Filme (MP4) pela busca, no celular.
-if [ "$NAME" != "tv" ]; then
-  tap_text "Buscar" sem-rolar
-  tap_text "Campo de busca"; adb shell input text "Filme%s1"; sleep 2; key KEYCODE_BACK; sleep 2
+# 5) Filme (MP4): tela de escolha > Filmes > 1ª categoria.
+if [ "$NAME" = "tv" ]; then focus "escolha"; focus_until "Filmes" $R; key $OK; else tap_text "Filmes"; fi
+wait_text "Filme 1" 60
+if [ "$NAME" = "tv" ]; then
+  open_movie() { focus "filmes"; focus_until "Filme 1" $U; key $OK; }
+else
   open_movie() { tap_card "Filme 1"; }
-  first_frames filme open_movie
 fi
+first_frames filme open_movie
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" >> "$STEPS"; else echo "FALHOU: APP FECHOU" >> "$STEPS"; fi
 adb logcat -d "*:E" | grep -iE "nuvora|AndroidRuntime|ANR in com.nuvora" > "$OUT/$NAME-$ROTULO-medicao-erros.txt" || true

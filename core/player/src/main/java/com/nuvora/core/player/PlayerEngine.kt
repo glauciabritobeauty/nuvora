@@ -5,6 +5,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -15,6 +16,8 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import com.nuvora.core.data.sources.NUVORA_USER_AGENT
 import com.nuvora.core.data.model.PlaybackRequest
 import com.nuvora.core.data.model.SubtitleMode
@@ -34,8 +37,10 @@ internal fun createPlayer(
     startPositionMs: Long,
     subtitleMode: SubtitleMode,
 ): ExoPlayer {
+    // Começa a tocar com 1 s de vídeo guardado (antes 1,5 s); depois de uma travada, 2,5 s para não travar de novo.
     val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(15_000, 30_000, 1_500, 3_000)
+        .setBufferDurationsMs(15_000, 30_000, 1_000, 2_500)
+        .setPrioritizeTimeOverSizeThresholds(true)
         .build()
     // Provedores costumam redirecionar de http para https e recusar apps desconhecidos.
     val http = DefaultHttpDataSource.Factory()
@@ -43,8 +48,14 @@ internal fun createPlayer(
         .setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(20_000)
         .setReadTimeoutMs(30_000)
+        .setKeepPostFor302Redirects(true)
+    // Canais .ts: aceita começar num quadro que não é o "inicial" (muitos provedores demoram a mandar um),
+    // em vez de esperar segundos pelo próximo.
+    val extractors = DefaultExtractorsFactory()
+        .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES)
+        .setConstantBitrateSeekingEnabled(true)
     return ExoPlayer.Builder(context)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http), extractors))
         .setLoadControl(loadControl)
         .setSeekBackIncrementMs(SEEK_STEP_MS)
         .setSeekForwardIncrementMs(SEEK_STEP_MS)
@@ -68,11 +79,27 @@ internal fun createPlayer(
                     }
                 }
                 .build()
-            val item = MediaItem.Builder().setUri(request.url).apply { request.mimeType?.let(::setMimeType) }.build()
+            val item = MediaItem.Builder().setUri(request.url).apply { (request.mimeType ?: guessMimeType(request.url))?.let(::setMimeType) }.build()
             setMediaItem(item, startPositionMs)
             prepare()
             playWhenReady = true
         }
+}
+
+/**
+ * Tipo do vídeo pelo endereço: o player já sabe como abrir, sem "farejar" o começo do arquivo.
+ * Sem certeza, deixa em branco (o player descobre sozinho, como antes).
+ */
+internal fun guessMimeType(url: String): String? {
+    val path = url.substringBefore('?').lowercase()
+    return when {
+        path.endsWith(".m3u8") -> MimeTypes.APPLICATION_M3U8
+        path.endsWith(".mpd") -> MimeTypes.APPLICATION_MPD
+        path.endsWith(".mp4") || path.endsWith(".m4v") -> MimeTypes.VIDEO_MP4
+        path.endsWith(".mkv") -> MimeTypes.VIDEO_MATROSKA
+        path.endsWith(".ts") -> MimeTypes.VIDEO_MP2T
+        else -> null
+    }
 }
 
 /** O erro veio de um certificado de segurança (https) inválido? */

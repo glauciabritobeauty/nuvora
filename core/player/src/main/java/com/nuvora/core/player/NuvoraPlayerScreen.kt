@@ -187,7 +187,7 @@ fun NuvoraPlayerScreen(
                     diag.log("certificado inválido no vídeo; tentando http")
                     player.setMediaItem(
                         androidx.media3.common.MediaItem.Builder().setUri("http://" + url.substring("https://".length))
-                            .apply { request.mimeType?.let(::setMimeType) }.build(),
+                            .apply { (request.mimeType ?: guessMimeType(request.url))?.let(::setMimeType) }.build(),
                         player.currentPosition,
                     )
                     player.prepare()

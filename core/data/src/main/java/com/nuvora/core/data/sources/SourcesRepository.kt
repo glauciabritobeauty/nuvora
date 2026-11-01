@@ -557,7 +557,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                 if (sections.values.all { it.isEmpty() }) throw ImportException(ImportFailure.Empty)
             }
             categoryCount = sections.values.sumOf { it.size }
-            id = saveProvider(sourceId, name, login, account, sections)
+            // Guarda o endereço que vale de verdade (sem o desvio https → http do provedor).
+            id = saveProvider(sourceId, name, login.copy(server = client.server), account, sections)
         } catch (e: Exception) {
             return finishReport(report, failureOf(e, SourceKind.Provider))
         }

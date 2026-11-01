@@ -176,6 +176,9 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     // Memória do que as telas de cada parte já mostraram: ao voltar de um vídeo, a lista aparece na hora.
     private val browseMemory = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, Any>>()
 
+    /** O que já entrou no cronômetro nesta sessão (cada parte só uma vez; o segundo plano não enche o relatório). */
+    private val noted = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+
     @Suppress("UNCHECKED_CAST")
     private fun <T> remembered(key: String, version: Long): T? = browseMemory[key]?.takeIf { it.first == version }?.second as T?
 
@@ -191,7 +194,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         val mark = SystemClock.elapsedRealtime()
         return sourcesRepo.categories(kind).also {
             browseMemory["c/${kind.key}"] = version to it
-            sourcesRepo.notePerformance("${kind.label}: ${it.size} categorias em ${SystemClock.elapsedRealtime() - mark} ms")
+            if (noted.add("c/${kind.key}")) sourcesRepo.notePerformance("${kind.label}: ${it.size} categorias em ${SystemClock.elapsedRealtime() - mark} ms")
         }
     }
 
@@ -217,7 +220,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         val mark = SystemClock.elapsedRealtime()
         return sourcesRepo.sectionItems(kind).also {
             browseMemory[key] = version to it
-            sourcesRepo.notePerformance("${kind.label} › Todos: ${it.size} itens em ${SystemClock.elapsedRealtime() - mark} ms")
+            if (noted.add(key)) sourcesRepo.notePerformance("${kind.label} › Todos: ${it.size} itens em ${SystemClock.elapsedRealtime() - mark} ms")
         }
     }
 
@@ -358,7 +361,13 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** O player avisa quando o vídeo apareceu (vai para o cronômetro do relatório). */
     fun noteFirstFrame(request: PlaybackRequest, millis: Long) {
-        sourcesRepo.notePerformance("Vídeo \"${request.title.take(40)}\" começou em $millis ms")
+        val kind = when {
+            request.url.contains("/movie/") -> "filme"
+            request.url.contains("/series/") -> "episódio"
+            else -> "canal"
+        }
+        val secure = if (request.url.startsWith("https://", ignoreCase = true)) "https" else "http"
+        sourcesRepo.notePerformance("Vídeo ($kind, $secure) \"${request.title.take(40)}\" começou em $millis ms")
     }
 
     fun closePlayer() {

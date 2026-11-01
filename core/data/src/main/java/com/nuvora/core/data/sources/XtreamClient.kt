@@ -76,7 +76,14 @@ internal class XtreamClient(
     private val fetch: (String) -> InputStream,
 ) {
     private val credentials = "username=${enc(login.user)}&password=${enc(login.password)}"
-    private val base = "${login.server}/player_api.php?$credentials"
+    /**
+     * Endereço do provedor que vale de verdade. Se o provedor manda o pedido de https para http
+     * (ou para outra porta) no mesmo site, passa a usar o endereço final direto: cada pedido e cada vídeo
+     * deixam de pagar o desvio e o "aperto de mão" de segurança.
+     */
+    var server = login.server
+        private set
+    private val base get() = "$server/player_api.php?$credentials"
     /** Formato dos canais ao vivo que o provedor aceita (m3u8 ou ts), descoberto no login. */
     var liveFormat = "m3u8"
 
@@ -96,7 +103,7 @@ internal class XtreamClient(
         replies += first
         loginFrom(first)?.let { return it }
         if (first.code == 400 || first.code == 405 || first.code == 422) {
-            val post = probe("Login pelo jeito alternativo (mesmo pedido, enviado como formulário)", "${login.server}/player_api.php", form = credentials)
+            val post = probe("Login pelo jeito alternativo (mesmo pedido, enviado como formulário)", "$server/player_api.php", form = credentials)
             replies += post
             loginFrom(post)?.let { return it }
         }
@@ -160,8 +167,23 @@ internal class XtreamClient(
         }
         if (info.formats.isNotEmpty() && "m3u8" !in info.formats && "ts" in info.formats) liveFormat = "ts"
         account = info
+        followRedirect(reply)
         report?.loginOk = true
         return ProviderAccess.Api
+    }
+
+    /** Mesmo site, só mudou de https para http (ou de porta): usa o endereço final daqui em diante. */
+    private fun followRedirect(reply: HttpReply) {
+        val final = reply.redirects.lastOrNull()?.let { runCatching { java.net.URI(it) }.getOrNull() } ?: return
+        val original = runCatching { java.net.URI(server) }.getOrNull() ?: return
+        if (final.host == null || !final.host.equals(original.host, ignoreCase = true)) return
+        if (final.rawPath?.endsWith("/player_api.php") != true) return
+        val port = if (final.port != -1) ":${final.port}" else ""
+        val effective = "${final.scheme}://${final.host}$port"
+        if (effective != server) {
+            report?.let { r -> r.add("Endereço mais rápido", null, "o provedor desvia para ${r.maskUrl(effective)}; os próximos pedidos e vídeos vão direto para lá", true) }
+            server = effective
+        }
     }
 
     private fun probe(title: String, url: String, form: String? = null, maxBytes: Int = 64 * 1024): HttpReply {
@@ -340,10 +362,10 @@ internal class XtreamClient(
                 val fields = json.readFlatObject()
                 val name = fields["name"]?.ifBlank { null } ?: continue
                 val url = when (kind) {
-                    SectionKind.Live -> "${login.server}/live/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$liveFormat"
+                    SectionKind.Live -> "$server/live/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$liveFormat"
                     SectionKind.Movies -> {
                         val ext = fields["container_extension"]?.ifBlank { null } ?: "mp4"
-                        "${login.server}/movie/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$ext"
+                        "$server/movie/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$ext"
                     }
                     SectionKind.Series -> "$SERIES_PREFIX${fields["series_id"] ?: continue}"
                 }
@@ -363,7 +385,7 @@ internal class XtreamClient(
     }
 
     /** Endereço da lista completa (plano B), com o mesmo usuário e senha. */
-    fun fullListUrl(variant: String) = "${login.server}/get.php?$credentials$variant"
+    fun fullListUrl(variant: String) = "$server/get.php?$credentials$variant"
 
     fun episodes(seriesId: String): List<Episode> {
         val list = ArrayList<Episode>()
@@ -397,7 +419,7 @@ internal class XtreamClient(
                             season = season,
                             number = number,
                             title = fields["title"]?.ifBlank { null } ?: "Episódio $number",
-                            url = "${login.server}/series/${login.user}/${login.password}/$id.$ext",
+                            url = "$server/series/${login.user}/${login.password}/$id.$ext",
                         )
                     }
                     json.endArray()
