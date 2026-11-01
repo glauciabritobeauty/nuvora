@@ -130,6 +130,7 @@ class Grande(http.server.BaseHTTPRequestHandler):
         time.sleep(LATENCIA)
         self.send_response(200)
         self.send_header("Content-Type", tipo)
+        self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(len(corpo)))
         self.end_headers()
         try:
@@ -146,7 +147,31 @@ class Grande(http.server.BaseHTTPRequestHandler):
             self.send_error(404)
             return
         with open(caminho, "rb") as f:
-            self.enviar(f.read(), tipo)
+            dados = f.read()
+        # Como os servidores de vídeo de verdade: atende "só a partir deste ponto" (Range), usado para continuar de onde parou.
+        faixa = self.headers.get("Range", "")
+        if faixa.startswith("bytes="):
+            inicio_txt, _, fim_txt = faixa[6:].partition("-")
+            inicio = int(inicio_txt or 0)
+            fim = int(fim_txt) if fim_txt else len(dados) - 1
+            if inicio < len(dados):
+                parte = dados[inicio:fim + 1]
+                time.sleep(LATENCIA)
+                self.send_response(206)
+                self.send_header("Content-Type", tipo)
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Range", f"bytes {inicio}-{inicio + len(parte) - 1}/{len(dados)}")
+                self.send_header("Content-Length", str(len(parte)))
+                self.end_headers()
+                try:
+                    for i in range(0, len(parte), 16 * 1024):
+                        pedaco = parte[i:i + 16 * 1024]
+                        cano.esperar(len(pedaco))
+                        self.wfile.write(pedaco)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return
+        self.enviar(dados, tipo)
 
     def do_GET(self):
         url = urllib.parse.urlparse(self.path)
