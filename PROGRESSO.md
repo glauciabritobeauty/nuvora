@@ -564,3 +564,11 @@ Versão de segurança: tag `seguranca-0.9.7-antes-video` + `apk/seguranca/nuvora
 - Cronômetro: 1º quadro uma vez só por vídeo (o "começou 5 vezes" do episódio era o aviso repetido a cada pulo/carregamento); ao fechar: travadas, tempo parado, pulos e tempo assistido.
 Medição (emulador, provedor de teste SEM desvio — o ganho do desvio só aparece em provedor real): filme celular 1,7/3,3/3,0 s, TV 0,9/1,0/1,0 s; canal celular 6,3/5,0/5,3 s (emulador instável; no aparelho real o canal deu 0,8–1,3 s), TV 3,5/1,2/1,3 s. APK 2,5 MB; memória 35–37 MB.
 Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
+
+## Tela de detalhes (v0.9.9) — testada no emulador, aguardando aparelho
+Versão de segurança: tag `seguranca-0.9.8-antes-detalhes` + `apk/seguranca/nuvora-0.9.8-video.apk`.
+- Teste da Glaucia: mesmo filme do plus.lat levou 13 s no CasaTV (NUVORA 9,6 s) → a demora é do servidor do provedor. O CasaTV mostra uma tela de detalhes antes do filme (ideia aprovada em prévia).
+- Filmes/séries abertos pelas categorias passam pela tela de detalhes: capa, ano, duração, nota, gênero, sinopse, direção, elenco (get_vod_info/get_series_info; só o que o provedor mandar), Assistir e Favoritar; série com temporadas e episódios na tela. Canais abrem direto.
+- Enquanto os detalhes estão abertos, o desvio do provedor é resolvido e o player é preparado sem tocar (PlayerWarmup); Assistir usa o player já pronto; ao voltar do vídeo prepara de novo; sair dos detalhes libera.
+- Cronômetro: filme com desvio não aparece mais como "canal".
+Medição a 8 Mega (emulador): filme pela tela de detalhes após 3 s "lendo": 0,93 s celular / 0,49 s TV (antes 1,7–3,3 s / 0,9–1,0 s). Testes: login 49/22 ok, telas sem falhas novas, 0 erros; print da tela de detalhes conferido.
