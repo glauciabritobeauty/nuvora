@@ -392,7 +392,29 @@ internal class XtreamClient(
     /** Endereço da lista completa (plano B), com o mesmo usuário e senha. */
     fun fullListUrl(variant: String) = "$server/get.php?$credentials$variant"
 
-    fun episodes(seriesId: String): List<Episode> {
+    /** Episódios de uma série. */
+    fun episodes(seriesId: String): List<Episode> = seriesInfo(seriesId).second
+
+    /** Informações de um filme (sinopse, elenco, duração...) para a tela de detalhes. */
+    fun vodInfo(vodId: String): ItemInfo {
+        var info = ItemInfo()
+        read("$base&action=get_vod_info&vod_id=${enc(vodId)}") { json ->
+            if (json.peek() != JsonToken.BEGIN_OBJECT) {
+                json.skipValue()
+                return@read
+            }
+            json.beginObject()
+            while (json.hasNext()) {
+                if (json.nextName() == "info") info = json.readInfo() else json.skipValue()
+            }
+            json.endObject()
+        }
+        return info
+    }
+
+    /** Informações e episódios de uma série (um pedido só). */
+    fun seriesInfo(seriesId: String): Pair<ItemInfo, List<Episode>> {
+        var info = ItemInfo()
         val list = ArrayList<Episode>()
         read("$base&action=get_series_info&series_id=${enc(seriesId)}") { json ->
             if (json.peek() != JsonToken.BEGIN_OBJECT) {
@@ -401,7 +423,12 @@ internal class XtreamClient(
             }
             json.beginObject()
             while (json.hasNext()) {
-                if (json.nextName() != "episodes" || json.peek() != JsonToken.BEGIN_OBJECT) {
+                val name = json.nextName()
+                if (name == "info") {
+                    info = json.readInfo()
+                    continue
+                }
+                if (name != "episodes" || json.peek() != JsonToken.BEGIN_OBJECT) {
                     json.skipValue()
                     continue
                 }
@@ -433,7 +460,7 @@ internal class XtreamClient(
             }
             json.endObject()
         }
-        return list.sortedWith(compareBy({ it.season }, { it.number }))
+        return info to list.sortedWith(compareBy({ it.season }, { it.number }))
     }
 
     /** Faz o pedido e anota no relatório o resultado (ou a falha, que conta como erro de carregamento da lista). */
@@ -493,6 +520,43 @@ private fun JsonReader.nextLooseString(): String? = when (peek()) {
         skipValue()
         null
     }
+}
+
+/** Lê o bloco "info" de um filme ou série (o que vier; nada é inventado). */
+private fun JsonReader.readInfo(): ItemInfo {
+    if (peek() != JsonToken.BEGIN_OBJECT) {
+        skipValue()
+        return ItemInfo()
+    }
+    val fields = HashMap<String, String>()
+    var backdrop: String? = null
+    beginObject()
+    while (hasNext()) {
+        val name = nextName()
+        if (name == "backdrop_path" && peek() == JsonToken.BEGIN_ARRAY) {
+            beginArray()
+            while (hasNext()) nextLooseString()?.takeIf { backdrop == null && it.startsWith("http") }?.let { backdrop = it }
+            endArray()
+        } else {
+            nextLooseString()?.let { fields[name] = it }
+        }
+    }
+    endObject()
+    fun pick(vararg names: String) = names.firstNotNullOfOrNull { fields[it]?.trim()?.ifBlank { null } }
+    val seconds = pick("duration_secs")?.toLongOrNull()
+        ?: pick("duration")?.split(':')?.mapNotNull { it.toLongOrNull() }?.takeIf { it.size == 3 }?.let { (h, m, s) -> h * 3600 + m * 60 + s }
+        ?: pick("episode_run_time")?.toLongOrNull()?.times(60)
+    return ItemInfo(
+        plot = pick("plot", "description"),
+        cast = pick("cast", "actors"),
+        director = pick("director"),
+        genre = pick("genre"),
+        year = pick("releasedate", "release_date", "releaseDate", "year")?.let { Regex("\\d{4}").find(it)?.value },
+        duration = seconds?.takeIf { it > 0 }?.let { if (it >= 3600) "${it / 3600}h${"%02d".format((it % 3600) / 60)}" else "${it / 60} min" },
+        rating = pick("rating")?.toDoubleOrNull()?.takeIf { it > 0 }?.let { String.format(java.util.Locale.US, "%.1f", it) },
+        cover = pick("movie_image", "cover_big", "cover")?.takeIf { it.startsWith("http") },
+        backdrop = backdrop ?: pick("backdrop_path")?.takeIf { it.startsWith("http") },
+    )
 }
 
 /** Lê um objeto guardando só os campos simples (ignora listas e objetos dentro dele). */

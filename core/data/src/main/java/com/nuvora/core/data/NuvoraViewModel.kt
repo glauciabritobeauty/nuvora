@@ -27,6 +27,7 @@ import com.nuvora.core.data.sources.SourceCatalog
 import com.nuvora.core.data.sources.SourceInfo
 import com.nuvora.core.data.sources.SourcesRepository
 import com.nuvora.core.data.sources.CategoryRef
+import com.nuvora.core.data.sources.ItemInfo
 import com.nuvora.core.data.sources.HubData
 import com.nuvora.core.data.sources.LoadProgress
 import com.nuvora.core.data.sources.SectionKind
@@ -43,6 +44,23 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/**
+ * Tela de detalhes de um filme ou série. Abre na hora com nome e capa; [info] e [episodes] chegam
+ * do provedor logo depois. [request] = o vídeo do filme, já com o endereço final (para preparar antes).
+ */
+@Immutable
+data class DetailsState(
+    val itemId: String,
+    val kind: SectionKind,
+    val title: String,
+    val imageUrl: String?,
+    val rating: String?,
+    val loading: Boolean = true,
+    val info: ItemInfo? = null,
+    val episodes: List<Episode> = emptyList(),
+    val request: PlaybackRequest? = null,
+)
 
 /** Série aberta, com a lista de episódios para escolher. */
 @Immutable
@@ -117,6 +135,38 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Série aberta esperando a pessoa escolher o episódio (null = nenhuma). */
     val episodes: StateFlow<SeriesEpisodes?> = _episodes.asStateFlow()
+
+    private val _details = MutableStateFlow<DetailsState?>(null)
+
+    /** Tela de detalhes aberta (null = nenhuma). */
+    val details: StateFlow<DetailsState?> = _details.asStateFlow()
+
+    /** Abre os detalhes de um filme ou série: aparece na hora; sinopse, episódios e o vídeo vêm por trás. */
+    fun openDetails(item: CardItem, kind: SectionKind) {
+        _details.value = DetailsState(item.id, kind, item.title, item.imageUrl, item.rating)
+        viewModelScope.launch {
+            val (info, episodes) = sourcesRepo.itemInfo(item.id)
+            val request = if (kind == SectionKind.Movies) sourcesRepo.playback(item.id)?.let { withDirectUrl(it) } else null
+            _details.value = _details.value?.takeIf { it.itemId == item.id }?.copy(loading = false, info = info, episodes = episodes, request = request)
+        }
+    }
+
+    fun closeDetails() {
+        _details.value = null
+    }
+
+    /** Assistir o filme dos detalhes (o vídeo já pode estar preparado). */
+    fun playDetails() {
+        val state = _details.value ?: return
+        val request = state.request
+        if (request != null) _playing.value = request else play(state.itemId) {}
+    }
+
+    /** Episódio escolhido na tela de detalhes da série. */
+    fun playDetailsEpisode(episode: Episode) {
+        val state = _details.value ?: return
+        playEpisode(SeriesEpisodes(state.itemId, state.title, state.episodes), episode)
+    }
 
     private val _playing = MutableStateFlow<PlaybackRequest?>(null)
 
@@ -378,9 +428,10 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** O player avisa quando o vídeo apareceu (vai para o cronômetro do relatório). */
     fun noteFirstFrame(request: PlaybackRequest, millis: Long) {
+        // O endereço final (depois do desvio) não diz mais "/movie/": a parte vem do item na lista.
         val kind = when {
             request.id.contains("-e") -> "episódio"
-            request.url.contains("/movie/") || request.url.endsWith(".mp4") || request.url.endsWith(".mkv") -> "filme"
+            lastRedirects > 0 || request.url.contains("/movie/") || request.url.substringBefore('?').let { it.endsWith(".mp4") || it.endsWith(".mkv") } -> "filme"
             else -> "canal"
         }
         val secure = if (request.url.startsWith("https://", ignoreCase = true)) "https" else "http"

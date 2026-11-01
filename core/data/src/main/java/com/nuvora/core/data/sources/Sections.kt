@@ -59,6 +59,20 @@ data class LoadProgress(
     val failed: Boolean = false,
 )
 
+/** O que o provedor sabe de um filme ou série (tela de detalhes). Campo vazio = o provedor não mandou. */
+@Immutable
+data class ItemInfo(
+    val plot: String? = null,
+    val cast: String? = null,
+    val director: String? = null,
+    val genre: String? = null,
+    val year: String? = null,
+    val duration: String? = null,
+    val rating: String? = null,
+    val cover: String? = null,
+    val backdrop: String? = null,
+)
+
 /** Tudo o que a tela de escolha mostra. */
 @Immutable
 data class HubData(

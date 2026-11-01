@@ -165,10 +165,19 @@ key KEYCODE_BACK; sleep 2
 # 5) Filme (MP4): tela de escolha > Filmes > 1ª categoria.
 if [ "$NAME" = "tv" ]; then focus "escolha"; focus_until "Filmes" $R; key $OK; else tap_text "Filmes"; fi
 wait_text "Filme 1" 60
+# Filme abre a tela de detalhes; o vídeo é preparado enquanto ela está aberta (3 s, como alguém lendo) e aí Assistir.
 if [ "$NAME" = "tv" ]; then
-  open_movie() { focus "filmes"; focus_until "Filme 1" $U; key $OK; }
+  open_movie() {
+    focus "filmes"
+    if ! echo "$LAST_FOCUS" | grep -q "Assistir"; then focus_until "Filme 1" $U; key $OK; sleep 3; focus "detalhes"; fi
+    key $OK
+  }
 else
-  open_movie() { tap_card "Filme 1"; }
+  open_movie() {
+    read_ui
+    if ! grep -qF 'content-desc="Assistir"' ui.xml && ! grep -qF 'text="Assistir"' ui.xml; then tap_card "Filme 1"; sleep 3; fi
+    tap_text "Assistir" sem-rolar
+  }
 fi
 first_frames filme open_movie
 

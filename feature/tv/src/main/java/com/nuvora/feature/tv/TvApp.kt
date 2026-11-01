@@ -30,6 +30,8 @@ import com.nuvora.core.player.NuvoraPlayerScreen
 import com.nuvora.core.data.sources.SectionKind
 import com.nuvora.feature.sources.AddSourceScreen
 import com.nuvora.feature.sources.BrowseScreen
+import com.nuvora.feature.sources.DetailsScreen
+import com.nuvora.core.player.PlayerWarmup
 import com.nuvora.feature.sources.HubScreen
 import com.nuvora.feature.sources.EpisodesDialog
 import com.nuvora.feature.sources.SourcesSection
@@ -86,6 +88,16 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val changes by viewModel.changes.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
+    val details by viewModel.details.collectAsStateWithLifecycle()
+    // Filme aberto nos detalhes: o vídeo já vai sendo preparado por trás (começa mais rápido no Assistir).
+    val detailsRequest = details?.request
+    LaunchedEffect(detailsRequest?.url) {
+        detailsRequest?.let { PlayerWarmup.prepare(context, it, viewModel.resumePositionFor(it.id), subtitleMode) }
+    }
+    val closeDetails = {
+        PlayerWarmup.release()
+        viewModel.closeDetails()
+    }
     // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
     val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
@@ -167,6 +179,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             onSelect = { selected ->
                 addingSource = false
                 browseKey = null
+                closeDetails()
                 tab = TvTab.entries.first { it.item.key == selected.key }
             },
             selectedFocusRequester = menuFocus,
@@ -186,6 +199,14 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             }
             val browsing = browseKey?.let(SectionKind::of)
             when {
+                tab == TvTab.Home && details != null -> DetailsScreen(
+                    state = details!!,
+                    isFavorite = details!!.itemId in state.favoriteIds,
+                    onPlay = viewModel::playDetails,
+                    onPlayEpisode = viewModel::playDetailsEpisode,
+                    onToggleFavorite = { viewModel.toggleFavorite(details!!.itemId) },
+                    onBack = closeDetails,
+                )
                 tab == TvTab.Home && !state.demoOn && browsing != null -> BrowseScreen(
                     kind = browsing,
                     changes = changes,
@@ -196,6 +217,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     search = viewModel::searchIn,
                     onOpen = openItem,
                     onBack = { browseKey = null },
+                    onOpenDetails = { item -> if (browsing != SectionKind.Live) viewModel.openDetails(item, browsing) else openItem(item.id) },
                     cachedCategories = viewModel.cachedCategories(browsing),
                     cachedItems = { viewModel.cachedItems(browsing, it) },
                 )

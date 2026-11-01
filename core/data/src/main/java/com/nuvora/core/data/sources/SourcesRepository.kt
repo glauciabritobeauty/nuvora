@@ -391,6 +391,28 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             .getOrDefault(emptyList())
     }
 
+    /**
+     * Informações de um filme ou série para a tela de detalhes (e, na série, os episódios), num pedido só.
+     * Lista que não é de provedor: sem informações extras (a tela mostra só capa e nome).
+     */
+    suspend fun itemInfo(itemId: String): Pair<ItemInfo, List<Episode>> = io {
+        val empty = ItemInfo() to emptyList<Episode>()
+        val (sourceId, position) = parseId(itemId) ?: return@io empty
+        val client = providerClient(sourceId) ?: return@io empty
+        val url = database.readableDatabase.rawQuery(
+            "SELECT url_cifrada FROM itens WHERE fonte_id = ? AND posicao = ?",
+            arrayOf(sourceId.toString(), position.toString()),
+        ).use { c -> if (c.moveToFirst()) crypto.decrypt(c.getString(0)) else null } ?: return@io empty
+        runCatching {
+            if (url.startsWith(XtreamClient.SERIES_PREFIX)) {
+                client.seriesInfo(url.removePrefix(XtreamClient.SERIES_PREFIX))
+            } else {
+                val vodId = Regex("/movie/[^/]+/[^/]+/([^/.]+)").find(url)?.groupValues?.get(1)
+                (vodId?.let { client.vodInfo(it) } ?: ItemInfo()) to emptyList()
+            }
+        }.getOrDefault(empty)
+    }
+
     suspend fun addFile(name: String, uri: Uri, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
         runCatching {
             appContext.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)

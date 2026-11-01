@@ -26,4 +26,6 @@ dependencies {
     implementation(project(":core:data"))
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
+    // Imagem de fundo da tela de detalhes.
+    implementation(libs.coil.compose)
 }

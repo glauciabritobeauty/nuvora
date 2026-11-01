@@ -253,6 +253,8 @@ fun BrowseScreen(
     onOpen: (String) -> Unit,
     onBack: () -> Unit,
     onLongPress: ((CardItem) -> Unit)? = null,
+    /** Filmes e séries: abre a tela de detalhes (em vez de tocar direto). */
+    onOpenDetails: ((CardItem) -> Unit)? = null,
     /** O que esta tela mostrou da última vez (ao voltar de um vídeo, aparece na hora, sem carregar de novo). */
     cachedCategories: List<CategoryRef>? = null,
     cachedItems: (selectedKey: String) -> List<CardItem>? = { null },
@@ -369,7 +371,7 @@ fun BrowseScreen(
                         title = item.title,
                         imageUrl = item.imageUrl,
                         rating = item.rating,
-                        onClick = { onOpen(item.id) },
+                        onClick = { onOpenDetails?.invoke(item) ?: onOpen(item.id) },
                         onLongClick = onLongPress?.let { { it(item) } },
                     )
                 }

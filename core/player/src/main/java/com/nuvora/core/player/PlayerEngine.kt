@@ -36,6 +36,8 @@ internal fun createPlayer(
     request: PlaybackRequest,
     startPositionMs: Long,
     subtitleMode: SubtitleMode,
+    /** false = só prepara (carrega o começo) sem tocar; usado na tela de detalhes. */
+    autoplay: Boolean = true,
 ): ExoPlayer {
     // Começa a tocar com 1 s de vídeo guardado (antes 1,5 s); depois de uma travada, 2,5 s para não travar de novo.
     val loadControl = DefaultLoadControl.Builder()
@@ -82,7 +84,7 @@ internal fun createPlayer(
             val item = MediaItem.Builder().setUri(request.url).apply { (request.mimeType ?: guessMimeType(request.url))?.let(::setMimeType) }.build()
             setMediaItem(item, startPositionMs)
             prepare()
-            playWhenReady = true
+            playWhenReady = autoplay
         }
 }
 

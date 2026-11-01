@@ -133,7 +133,10 @@ fun NuvoraPlayerScreen(
     val summary by rememberUpdatedState(onSummary)
 
     val openedAt = remember(request.id) { SystemClock.elapsedRealtime() }
-    val player = remember(request.id) { createPlayer(context, request, startPositionMs, subtitleMode) }
+    // Se o vídeo já foi preparado na tela de detalhes, usa esse (começa mais rápido); senão, cria agora.
+    val player = remember(request.id) {
+        PlayerWarmup.take(request.url)?.apply { playWhenReady = true } ?: createPlayer(context, request, startPositionMs, subtitleMode)
+    }
     val diag = remember { PlayerDiagnostics(context) }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
