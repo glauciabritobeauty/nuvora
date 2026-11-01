@@ -548,3 +548,11 @@ Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
 - Categoria de filmes buscada no provedor: 0,41 s (448 itens). Categoria já no aparelho: 23 ms (1.067 séries). "Todos" da TV: 31 ms (906 canais).
 - Vídeo: canal 0,88 s; episódio 1,33 s; filmes 2,45 s e 3,59 s.
 - Ideia pequena para depois: guardar como "servidor salvo" o endereço final (http) para o login também pular o desvio (~0,5–0,7 s).
+
+## Link M3U rápido (v0.9.7) — testada no emulador
+Versão de segurança: tag `seguranca-0.9.6-antes-link` + `apk/seguranca/nuvora-0.9.6-player.apk`.
+- Link de provedor (get.php com usuário e senha dentro): entra pelo caminho rápido do Provedor/Usuário/Senha (categorias primeiro).
+- Outros links M3U: confere só o começo (erros como 404/456 continuam aparecendo na hora), vai direto para a tela de escolha e lê a lista aos poucos por trás (lotes; recomeça se a conexão cair). Atualizar também é por trás. Segundo plano atende uma lista por vez, incluindo as adicionadas no meio do caminho.
+- Servidor errado ou sem porta (ex.: DNS de STB que a Glaucia tentou): mensagem "confira o servidor (DNS) e a porta" em vez de "não aceitou o pedido".
+- Relatório real (plus.lat, link M3U colado no servidor na 0.9.6): login 0,35 s, categorias 0,3–0,5 s; canal 2,4–2,8 s; filme 4,5–6,2 s (reabrindo 8 s); episódio 5,7 s (reabrindo 8,7 s). Vídeos deste provedor saem de outro endereço (server_info muubsaaa.online). Próximo: cronômetro detalhado do vídeo + "desviar uma vez só".
+Testes: login 47/22 ok; telas tablet 162 ok sem falhas, TV sem falhas, celular só as conhecidas do menu de baixo; link de provedor e listas difíceis ok; 0 erros. DNS de "STB / Smart UP" não é compatível (outro sistema, por MAC).
