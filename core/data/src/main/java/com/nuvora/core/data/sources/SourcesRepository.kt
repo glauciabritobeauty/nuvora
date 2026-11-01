@@ -67,7 +67,7 @@ enum class ImportFailure(val message: String) {
     FileUnreadable("Não foi possível abrir esse arquivo. Escolha a lista de novo."),
     WrongLogin("Usuário ou senha incorretos. Confira e tente de novo."),
     Expired("A sua assinatura venceu. Fale com o seu fornecedor."),
-    NotAServer("Esse endereço não respondeu como um provedor. Confira o campo Provedor."),
+    NotAServer("Esse endereço não respondeu como um provedor. Confira o servidor (DNS) e a porta, por exemplo http://exemplo.com:8080."),
     ServerNotFound("Não encontramos o servidor do provedor. Confira o endereço no campo Provedor."),
     NotRecognized("O provedor não reconheceu esse usuário e senha. Confira letra por letra (maiúsculas e minúsculas contam) ou peça ao seu fornecedor para conferir se o acesso está ativo."),
     RequestRejected("O provedor não aceitou o pedido do NUVORA. Copie o relatório de conexão e mande para o suporte."),

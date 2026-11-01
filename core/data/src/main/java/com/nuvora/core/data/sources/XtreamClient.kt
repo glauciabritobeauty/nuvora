@@ -140,6 +140,11 @@ internal class XtreamClient(
                 "player_api HTTP $api · get.php HTTP $list",
                 "O provedor recusou os dois jeitos de entrar com esse usuário e senha. O mais provável é usuário ou senha " +
                     "diferente do cadastrado no provedor (ou acesso desativado). O formato dos pedidos é o mesmo que funciona em outros provedores.")
+            // O endereço responde, mas não como provedor (muitas vezes falta a porta, ex.: :8080).
+            api in 200..299 && list in setOf(401, 403, 404) -> exception(ImportFailure.NotAServer, ProblemKind.ServerResponse,
+                "player_api HTTP $api · get.php HTTP $list",
+                "O endereço respondeu, mas não como um provedor de canais. O mais comum é faltar a porta no servidor " +
+                    "(ex.: http://exemplo.com:8080) ou ser outro endereço. Confira com o seu fornecedor o servidor completo.")
             api == 404 && list == 404 -> exception(ImportFailure.NotAServer, ProblemKind.ServerResponse, "HTTP 404",
                 "Nesse endereço não existe provedor no padrão Provedor/Usuário/Senha. Confira o campo Provedor.")
             codes.all { it in 200..299 } -> exception(ImportFailure.NotAServer, ProblemKind.ServerResponse, "resposta inesperada",
