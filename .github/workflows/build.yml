@@ -223,13 +223,12 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            bash ci/medir.sh ${{ matrix.name }} "$(ls apk-antes/*.apk)" antes
             bash ci/medir.sh ${{ matrix.name }} "$(ls apk-depois/*.apk)" depois
       - name: Resultado
         if: always()
         run: |
           cp provedor.log out/ 2> /dev/null || true
-          paste -d'	' out/medidas-${{ matrix.name }}-antes.txt out/medidas-${{ matrix.name }}-depois.txt || true
+          cat out/medidas-${{ matrix.name }}-depois.txt || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:

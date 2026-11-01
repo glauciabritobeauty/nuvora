@@ -90,6 +90,20 @@ def gerar():
 
 
 RESPOSTAS = gerar()
+
+
+def separar():
+    """Respostas já separadas por categoria (para o pedido "só esta categoria")."""
+    saida = {}
+    for acao in ("get_live_streams", "get_vod_streams", "get_series"):
+        grupos = {}
+        for item in json.loads(RESPOSTAS[acao]):
+            grupos.setdefault(str(item["category_id"]), []).append(item)
+        saida[acao] = {cat: json.dumps(lista, ensure_ascii=False).encode("utf-8") for cat, lista in grupos.items()}
+    return saida
+
+
+POR_CATEGORIA = separar()
 for acao, corpo in RESPOSTAS.items():
     print(f"{acao}: {len(corpo) / 1_000_000:.1f} MB")
 print(f"total: {sum(len(c) for c in RESPOSTAS.values()) / 1_000_000:.1f} MB", flush=True)
@@ -146,6 +160,9 @@ class Grande(http.server.BaseHTTPRequestHandler):
                 return self.enviar(LOGIN, "application/json")
             if acao == "get_series_info":
                 return self.enviar(EPISODIOS, "application/json")
+            # Como os provedores de verdade: dá para pedir só uma categoria.
+            if "category_id" in q and acao in POR_CATEGORIA:
+                return self.enviar(POR_CATEGORIA[acao].get(q["category_id"], b"[]"), "application/json")
             return self.enviar(RESPOSTAS.get(acao, b"[]"), "application/json")
         if len(partes) == 4 and partes[0] in ("live", "movie", "series") and partes[1:3] == ["grande", "1234"]:
             if partes[0] == "live":

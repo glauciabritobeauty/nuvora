@@ -108,19 +108,23 @@ else
   login_form "http://10.0.2.2:8800" "grande" "1234" nao-entrar
   INICIO=$(date +%s); tap_text "ENTRAR"
 fi
-# Espera o "Pronto!" (até 15 minutos) olhando as anotações do app (mais leve que ler a tela).
-for i in $(seq 1 180); do if flog | grep -q "importou"; then break; fi; sleep 5; done
+# Espera a tela de escolha: o app anota "medida entrada" quando a senha e as categorias chegaram.
+for i in $(seq 1 120); do if flog | grep -q "medida entrada"; then break; fi; sleep 1; done
 FIM=$(date +%s)
-flog | sed 's/^/  anotação: /' >> "$STEPS"
+wait_text "TV ao vivo" 60; TELA=$(date +%s); shot "$ROTULO-medicao-escolha"
 med login_ms "$(flog | grep -o 'medida login [0-9]*' | tail -1 | awk '{print $3}')"
-med conteudo_ms "$(flog | grep -o 'medida conteudo [0-9]* itens [0-9]*' | tail -1 | awk '{print $5}')"
-med itens "$(flog | grep -o 'importou [0-9]*' | tail -1 | awk '{print $2}')"
-med salvar_ate_pronto_s "$((FIM - INICIO))"
-sleep 5
-med home_montagem_ms "$(flog | grep -o 'medida home [0-9]* cartoes [0-9]*' | tail -1 | awk '{print $5}')"
-wait_text "Ir para o Início" 60; shot "$ROTULO-medicao-pronto"
-if [ "$NAME" = "tv" ]; then focus_until "Ir para o Início" $D; key $OK; else tap_text "Ir para o Início"; fi
-sleep 5; shot "$ROTULO-medicao-home"
+med entrada_ms "$(flog | grep -o 'medida entrada [0-9]* categorias [0-9]*' | tail -1 | awk '{print $5}')"
+med categorias "$(flog | grep -o 'medida entrada [0-9]*' | tail -1 | awk '{print $3}')"
+med entrar_ate_tela_de_escolha_s "$((TELA - INICIO))"
+# 2b) Abrir TV ao vivo logo depois de entrar (a 1ª categoria já vem junto com o login).
+if [ "$NAME" = "tv" ]; then focus "escolha"; focus_until "TV ao vivo" $U; key $OK; else tap_text "TV ao vivo"; fi
+ABRIU=$(date +%s); wait_text "Canal 1" 60; med tv_ao_vivo_ate_canais_s "$(( $(date +%s) - ABRIU ))"; shot "$ROTULO-medicao-tv-ao-vivo"
+# O resto chega em segundo plano: quanto tempo até a lista inteira estar no aparelho (sem travar a tela).
+for i in $(seq 1 180); do if flog | grep -q "lista .* completa"; then break; fi; sleep 5; done
+med segundo_plano_ate_completa_s "$(( $(date +%s) - INICIO ))"
+
+flog | grep -v relatorio | sed 's/^/  anotação: /' | tail -30 >> "$STEPS"
+key KEYCODE_BACK; sleep 2
 
 # 3) Abrir o app já com o conteúdo (o dia a dia).
 cold_starts abertura_com_conteudo 5
@@ -132,14 +136,17 @@ fi
 jank
 shot "$ROTULO-medicao-depois-de-rolar"
 
-# 4) Início do vídeo: canal ao vivo (HLS) pelo "Assistir" do destaque.
+# 4) Início do vídeo: canal ao vivo (HLS) pela lista de TV ao vivo.
 adb shell am force-stop "$PKG"; sleep 2; adb shell am start -W -n "$PKG/.MainActivity" > /dev/null; sleep 6
+if [ "$NAME" = "tv" ]; then focus "escolha"; focus_until "TV ao vivo" $U; key $OK; else tap_text "TV ao vivo"; fi
+wait_text "Canal 1" 60
 if [ "$NAME" = "tv" ]; then
-  open_live() { focus "home"; if ! echo "$LAST_FOCUS" | grep -q "Assistir"; then key $R; focus "home"; fi; key $OK; }
+  open_live() { focus "lista"; focus_until "Canal 1" $U; key $OK; }
 else
-  open_live() { tap_text "Assistir" sem-rolar; }
+  open_live() { tap_text "Canal 1" sem-rolar; }
 fi
 first_frames canal open_live
+key KEYCODE_BACK; sleep 2
 
 # 5) Filme (MP4) pela busca, no celular.
 if [ "$NAME" != "tv" ]; then

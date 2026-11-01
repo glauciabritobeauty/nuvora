@@ -64,9 +64,9 @@ import java.util.Locale
 /** Ícone de cada parte nos blocos da tela de escolha. */
 private val SectionKind.icon: ImageVector
     get() = when (this) {
-        SectionKind.Live -> NuvoraIcons.Source
+        SectionKind.Live -> NuvoraIcons.Tv
         SectionKind.Movies -> NuvoraIcons.Play
-        SectionKind.Series -> NuvoraIcons.Categories
+        SectionKind.Series -> NuvoraIcons.Stack
     }
 
 /**
@@ -164,7 +164,8 @@ private fun AccountHeader(hub: HubData) {
             contentAlignment = Alignment.Center,
         ) { NuvoraMark(Modifier.size(30.dp)) }
         Column {
-            NuvoraText(account?.sourceName ?: "NUVORA", NuvoraTheme.typography.title, maxLines = 1)
+            // Provedor: "Olá!" com os dados da conta embaixo; lista por link/arquivo: o nome da lista.
+            NuvoraText(if (account?.user != null) "Olá!" else account?.sourceName ?: "NUVORA", NuvoraTheme.typography.title, maxLines = 1)
             val details = listOfNotNull(
                 account?.user,
                 account?.expiresAt?.let { "vence ${SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date(it * 1000))}" },
