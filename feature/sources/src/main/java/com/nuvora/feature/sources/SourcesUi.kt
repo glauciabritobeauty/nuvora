@@ -89,6 +89,8 @@ fun SourcesSection(
     onAdd: () -> Unit,
     onRefresh: suspend (Long) -> ImportResult,
     onRemove: (Long) -> Unit,
+    /** Último relatório de conexão (texto, sem senha), para ver e copiar a qualquer hora. */
+    lastReport: String? = null,
 ) {
     val colors = NuvoraTheme.colors
     val scope = rememberCoroutineScope()
@@ -140,6 +142,7 @@ fun SourcesSection(
             }
         }
         NuvoraButton(text = "Adicionar lista", icon = NuvoraIcons.Plus, onClick = onAdd)
+        lastReport?.let { SavedReport(it) }
     }
 
     confirmRemove?.let { source ->
@@ -601,6 +604,42 @@ private fun serverLabel(server: String) = server.substringAfter("://").trimEnd('
 /** Nome automático da lista por link: o endereço do site. */
 private fun linkName(link: String) =
     runCatching { java.net.URI(link.trim()).host }.getOrNull()?.removePrefix("www.").orEmpty()
+
+/** Relatório de conexão guardado (Ajustes): ver e copiar para mandar ao suporte. */
+@Composable
+private fun SavedReport(text: String) {
+    val colors = NuvoraTheme.colors
+    val context = LocalContext.current
+    var open by rememberSaveable { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    NuvoraButton(
+        text = if (open) "Esconder relatório de conexão" else "Ver relatório de conexão",
+        icon = NuvoraIcons.File,
+        style = NuvoraButtonStyle.Secondary,
+        onClick = { open = !open },
+    )
+    if (!open) return
+    Card {
+        // Na TV cada linha recebe o foco do controle, para dar para rolar o relatório inteiro.
+        text.lines().filter { it.isNotBlank() }.forEach { line ->
+            StepFocus(NuvoraTheme.isTv) {
+                NuvoraText(line, NuvoraTheme.typography.caption, color = colors.textSecondary, modifier = Modifier.padding(vertical = 2.dp))
+            }
+        }
+        Box(Modifier.padding(top = 12.dp)) {
+            NuvoraButton(
+                text = if (copied) "Relatório copiado" else "Copiar relatório",
+                icon = if (copied) NuvoraIcons.Check else NuvoraIcons.Link,
+                style = NuvoraButtonStyle.Secondary,
+                onClick = {
+                    context.getSystemService(ClipboardManager::class.java)
+                        ?.setPrimaryClip(ClipData.newPlainText("Relatório de conexão NUVORA", text))
+                    copied = true
+                },
+            )
+        }
+    }
+}
 
 /** Na TV, deixa um trecho de texto receber o foco do controle (só para rolar a tela até ele). */
 @Composable

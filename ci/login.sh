@@ -118,6 +118,7 @@ echo "== cenário 3: jeito padrão funciona" >> "$STEPS"
 login "padrao"
 wait_text "TV ao vivo" 60; shot login-3-escolha
 flog | grep "medida" | sed 's/^/  anotação: /' >> "$STEPS"
+sleep 8  # a linha "aceita pedir por categoria?" chega do segundo plano
 save_report 3-padrao
 check_report 3-padrao "Recursos do provedor: pedir canais de uma categoria só: ok"
 check_secret "padrao" "cenário 3"

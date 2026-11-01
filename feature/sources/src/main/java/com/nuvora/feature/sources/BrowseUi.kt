@@ -253,19 +253,22 @@ fun BrowseScreen(
     onOpen: (String) -> Unit,
     onBack: () -> Unit,
     onLongPress: ((CardItem) -> Unit)? = null,
+    /** O que esta tela mostrou da última vez (ao voltar de um vídeo, aparece na hora, sem carregar de novo). */
+    cachedCategories: List<CategoryRef>? = null,
+    cachedItems: (selectedKey: String) -> List<CardItem>? = { null },
 ) {
     val colors = NuvoraTheme.colors
     val isTv = NuvoraTheme.isTv
     BackHandler(onBack = onBack)
     var query by rememberSaveable(kind) { mutableStateOf("") }
-    val categories by produceState<List<CategoryRef>?>(null, kind, changes) { value = loadCategories(kind) }
+    val categories by produceState(cachedCategories, kind, changes) { value = loadCategories(kind) }
     // TV ao vivo começa em "Todos os canais"; filmes e séries, na 1ª categoria.
     var selected by rememberSaveable(kind) { mutableStateOf(if (kind == SectionKind.Live) ALL else "") }
     LaunchedEffect(categories) { if (selected.isEmpty()) categories?.firstOrNull()?.let { selected = it.key } }
     val current = categories?.firstOrNull { it.key == selected }
     var failed by remember(kind, selected) { mutableStateOf(false) }
     // "Todos" e favoritos acompanham o que vai chegando; uma categoria aberta só recarrega quando termina de chegar.
-    val items by produceState<List<CardItem>?>(null, kind, selected, query, current?.loaded, if (selected == ALL) changes else 0L) {
+    val items by produceState(remember(kind) { cachedItems(selected) }, kind, selected, query, current?.loaded, if (selected == ALL) changes else 0L) {
         value = when {
             query.isNotBlank() -> search(kind, query)
             selected == FAVORITES -> loadFavorites(kind)

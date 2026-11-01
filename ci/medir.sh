@@ -29,6 +29,16 @@ m = re.search(r"\+(?:(\d+)s)?(\d+)ms", sys.stdin.read())
 print(int(m.group(1) or 0) * 1000 + int(m.group(2)) if m else "")'
 }
 pss() { adb shell dumpsys meminfo "$PKG" | grep "TOTAL PSS" | awk '{print $3}'; }
+agora_ms() { echo $(( $(date +%s%N) / 1000000 )); }
+# Espera um texto aparecer lendo a tela sem pausa (≈1 s por leitura) e devolve quanto tempo levou, em ms.
+wait_fast() {
+  local inicio=$2 limite=$(( $(agora_ms) + ${3:-60} * 1000 ))
+  while [ "$(agora_ms)" -lt "$limite" ]; do
+    read_ui
+    if grep -qF "$1" ui.xml; then echo $(( $(agora_ms) - inicio )); return 0; fi
+  done
+  echo ""
+}
 
 # Abre o app do zero N vezes: tempo até o 1º desenho (TotalTime) e até a tela útil (Fully drawn).
 cold_starts() {
@@ -101,24 +111,28 @@ adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 5
 adb logcat -c
 if [ "$NAME" = "tv" ]; then
   login_form "http://10.0.2.2:8800" "grande" "1234" nao-entrar
-  INICIO=$(date +%s); key $OK
+  INICIO=$(date +%s); INICIO_MS=$(agora_ms); key $OK
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
   login_form "http://10.0.2.2:8800" "grande" "1234" nao-entrar
-  INICIO=$(date +%s); tap_text "ENTRAR"
+  INICIO=$(date +%s); INICIO_MS=$(agora_ms); tap_text "ENTRAR"
 fi
-# Espera a tela de escolha: o app anota "medida entrada" quando a senha e as categorias chegaram.
-for i in $(seq 1 120); do if flog | grep -q "medida entrada"; then break; fi; sleep 1; done
-FIM=$(date +%s)
-wait_text "TV ao vivo" 60; TELA=$(date +%s); shot "$ROTULO-medicao-escolha"
+# Tempo de tocar em ENTRAR até a tela de escolha aparecer (lendo a tela sem pausa).
+med entrar_ate_tela_de_escolha_ms "$(wait_fast "TV ao vivo" "$INICIO_MS" 60)"; shot "$ROTULO-medicao-escolha"
 med login_ms "$(flog | grep -o 'medida login [0-9]*' | tail -1 | awk '{print $3}')"
 med entrada_ms "$(flog | grep -o 'medida entrada [0-9]* categorias [0-9]*' | tail -1 | awk '{print $5}')"
 med categorias "$(flog | grep -o 'medida entrada [0-9]*' | tail -1 | awk '{print $3}')"
-med entrar_ate_tela_de_escolha_s "$((TELA - INICIO))"
 # 2b) Abrir TV ao vivo logo depois de entrar (a 1ª categoria já vem junto com o login).
 if [ "$NAME" = "tv" ]; then focus "escolha"; focus_until "TV ao vivo" $U; key $OK; else tap_text "TV ao vivo"; fi
-ABRIU=$(date +%s); wait_text "Canal 1" 60; med tv_ao_vivo_ate_canais_s "$(( $(date +%s) - ABRIU ))"; shot "$ROTULO-medicao-tv-ao-vivo"
+med tv_ao_vivo_ate_canais_ms "$(wait_fast "Canal 1" "$(agora_ms)" 60)"; shot "$ROTULO-medicao-tv-ao-vivo"
+# Assistir um canal e voltar para a lista ENQUANTO o resto ainda carrega (o que a Glaucia sentiu demorar).
+if [ "$NAME" = "tv" ]; then focus "lista"; focus_until "Canal 1" $U; key $OK; else tap_text "Canal 1" sem-rolar; fi
+sleep 10
+for i in 1 2 3; do key KEYCODE_BACK; if plog | grep -q "fechado"; then break; fi; done
+med voltar_do_canal_ate_lista_ms "$(wait_fast "Canal 2" "$(agora_ms)" 30)"
+shot "$ROTULO-medicao-voltou-para-lista"
+med segundo_plano_ainda_carregando "$(if flog | grep -q 'lista .* completa'; then echo nao; else echo sim; fi)"
 # O resto chega em segundo plano: quanto tempo até a lista inteira estar no aparelho (sem travar a tela).
 for i in $(seq 1 180); do if flog | grep -q "lista .* completa"; then break; fi; sleep 5; done
 med segundo_plano_ate_completa_s "$(( $(date +%s) - INICIO ))"

@@ -138,8 +138,14 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
             loadInBackground()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
             sourcesRepo.sources.collectLatest { list ->
-                catalog.value = if (list.isEmpty()) null else sourcesRepo.loadCatalog()
+                if (list.isEmpty()) {
+                    catalog.value = null
+                } else if (catalog.value == null) {
+                    // Libera as telas na hora; a amostra da Home (só usada em partes antigas) vem logo depois.
+                    catalog.value = SourceCatalog(emptyList(), emptyList(), emptyList())
+                }
                 sourcesReady.value = true
+                if (list.isNotEmpty()) catalog.value = sourcesRepo.loadCatalog()
             }
         }
         viewModelScope.launch {
@@ -157,14 +163,41 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         background = viewModelScope.launch { sourcesRepo.loadPending() }
     }
 
+    // Memória do que as telas de cada parte já mostraram: ao voltar de um vídeo, a lista aparece na hora.
+    private val browseMemory = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, Any>>()
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> remembered(key: String, version: Long): T? = browseMemory[key]?.takeIf { it.first == version }?.second as T?
+
+    /** O que a tela de uma parte mostrou por último (para aparecer na hora ao voltar). */
+    fun cachedCategories(kind: SectionKind): List<CategoryRef>? = browseMemory["c/${kind.key}"]?.second as? List<CategoryRef>
+
+    fun cachedItems(kind: SectionKind, key: String): List<CardItem>? = browseMemory["i/${kind.key}/$key"]?.second as? List<CardItem>
+
     /** Categorias de uma parte (TV ao vivo, Filmes, Séries). */
-    suspend fun categories(kind: SectionKind): List<CategoryRef> = sourcesRepo.categories(kind)
+    suspend fun categories(kind: SectionKind): List<CategoryRef> {
+        val version = changes.value
+        remembered<List<CategoryRef>>("c/${kind.key}", version)?.let { return it }
+        return sourcesRepo.categories(kind).also { browseMemory["c/${kind.key}"] = version to it }
+    }
 
     /** Itens de uma categoria (busca na hora se ainda não chegaram). */
-    suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> = sourcesRepo.categoryItems(ref)
+    suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> {
+        val key = "i/${ref.kind.key}/${ref.sourceId}/${ref.id}"
+        if (ref.loaded) remembered<List<CardItem>>(key, 0L)?.let { return Result.success(it) }
+        return sourcesRepo.categoryItems(ref).onSuccess { if (it.isNotEmpty()) browseMemory[key] = 0L to it }
+    }
 
     /** Todos os itens de uma parte que já chegaram. */
-    suspend fun sectionItems(kind: SectionKind): List<CardItem> = sourcesRepo.sectionItems(kind)
+    suspend fun sectionItems(kind: SectionKind): List<CardItem> {
+        val key = "i/${kind.key}/\u0000todos"
+        val version = changes.value
+        remembered<List<CardItem>>(key, version)?.let { return it }
+        return sourcesRepo.sectionItems(kind).also { browseMemory[key] = version to it }
+    }
+
+    /** Último relatório de conexão (sem senha), para Ajustes. */
+    val lastReport: StateFlow<String?> = sourcesRepo.lastReport
 
     /** Busca dentro de uma parte. */
     suspend fun searchIn(kind: SectionKind, text: String): List<CardItem> = sourcesRepo.searchIn(kind, text)
@@ -182,6 +215,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** "Sair da conta": tira todas as listas do aparelho (o servidor salvo continua, para entrar de novo fácil). */
     fun logout(onDone: () -> Unit = {}) {
+        browseMemory.clear()
         viewModelScope.launch {
             background?.cancelAndJoin()
             background = null
@@ -213,12 +247,14 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         sourcesRepo.addProvider(name, login, onProgress).also { if (it is ImportResult.Success) loadInBackground() }
 
     suspend fun refreshSource(id: Long): ImportResult {
+        browseMemory.clear()
         background?.cancelAndJoin()
         background = null
         return sourcesRepo.refresh(id).also { loadInBackground() }
     }
 
     fun removeSource(id: Long) {
+        browseMemory.clear()
         viewModelScope.launch {
             background?.cancelAndJoin()
             background = null

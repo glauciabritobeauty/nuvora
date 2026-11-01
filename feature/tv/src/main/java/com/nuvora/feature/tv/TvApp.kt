@@ -85,6 +85,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val hub by viewModel.hub.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val changes by viewModel.changes.collectAsStateWithLifecycle()
+    val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
     // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
     val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
@@ -193,6 +194,8 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     search = viewModel::searchIn,
                     onOpen = openItem,
                     onBack = { browseKey = null },
+                    cachedCategories = viewModel.cachedCategories(browsing),
+                    cachedItems = { viewModel.cachedItems(browsing, it) },
                 )
                 tab == TvTab.Home && !state.demoOn -> HubScreen(
                     hub = hub,
@@ -272,6 +275,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                             onAdd = { addingSource = true },
                             onRefresh = viewModel::refreshSource,
                             onRemove = viewModel::removeSource,
+                        lastReport = lastReport,
                         )
                     },
                 )

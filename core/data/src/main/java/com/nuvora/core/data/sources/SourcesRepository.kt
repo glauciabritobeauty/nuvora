@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -98,6 +99,11 @@ data class SourceCatalog(
 )
 
 private class SourcesDatabase(context: Context) : SQLiteOpenHelper(context, "fontes.db", null, 2) {
+    init {
+        // Ler (abrir categoria, voltar para a lista, tela de escolha) nunca espera a gravação do segundo plano.
+        setWriteAheadLoggingEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             "CREATE TABLE fontes (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, tipo TEXT NOT NULL, " +
@@ -168,6 +174,30 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     /** Servidor (DNS) do último login que deu certo: na próxima vez, basta usuário e senha. Guardado cifrado. */
     val savedServer: StateFlow<String?> = _savedServer.asStateFlow()
 
+    private val _lastReport = MutableStateFlow<String?>(null)
+
+    /** Último relatório de conexão (texto, já sem usuário e senha), para Ajustes > Fontes de conteúdo. */
+    val lastReport: StateFlow<String?> = _lastReport.asStateFlow()
+
+    private fun saveReport(text: String) {
+        _lastReport.value = text
+        prefs.edit().putString("ultimo_relatorio", text).apply()
+    }
+
+    /** Acrescenta ao relatório o que só se descobre depois do login (ex.: se o provedor aceita pedir por categoria). */
+    private fun appendReport(line: String) {
+        if (debug) Log.i(TAG, "relatorio: $line")
+        saveReport((_lastReport.value ?: "") + "\n" + line)
+    }
+
+    /** Linha de execução própria e de baixa prioridade: o carregamento nunca disputa com a tela. */
+    private val backgroundDispatcher = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+        Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            task.run()
+        }, "nuvora-segundo-plano")
+    }.asCoroutineDispatcher()
+
     private val _loading = MutableStateFlow<LoadProgress?>(null)
 
     /** Andamento do carregamento em segundo plano (null = nada carregando). */
@@ -184,6 +214,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     suspend fun load() = io {
         refreshSources()
         _savedServer.value = prefs.getString("servidor_cifrado", null)?.let { runCatching { crypto.decrypt(it) }.getOrNull() }
+        _lastReport.value = prefs.getString("ultimo_relatorio", null)
     }
 
     suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
@@ -424,14 +455,21 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         "INSERT INTO itens (fonte_id, posicao, titulo, logo, grupo, url_cifrada, tipo, nota) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
 
-    private fun insertItem(insert: android.database.sqlite.SQLiteStatement, sourceId: Long, position: Long, entry: M3uEntry, kind: SectionKind) {
+    private fun insertItem(
+        insert: android.database.sqlite.SQLiteStatement,
+        sourceId: Long,
+        position: Long,
+        entry: M3uEntry,
+        kind: SectionKind,
+        encryptedUrl: String = crypto.encrypt(entry.url),
+    ) {
         insert.clearBindings()
         insert.bindLong(1, sourceId)
         insert.bindLong(2, position)
         insert.bindString(3, entry.title)
         entry.logo?.let { insert.bindString(4, it) }
         insert.bindString(5, entry.group?.trim()?.ifEmpty { null } ?: "Outros")
-        insert.bindString(6, crypto.encrypt(entry.url))
+        insert.bindString(6, encryptedUrl)
         insert.bindString(7, kind.key)
         entry.rating?.let { insert.bindString(8, it) }
         insert.executeInsert()
@@ -480,24 +518,6 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             id = saveProvider(sourceId, name, login, account, sections)
         } catch (e: Exception) {
             return finishReport(report, failureOf(e, SourceKind.Provider))
-        }
-        if (api) {
-            // A 1ª categoria da TV já vem agora (abre na hora) e o relatório diz se o provedor aceita pedir por categoria.
-            firstCategory(id)?.let { (kind, categoryId) ->
-                val url = "player_api.php?action=get_${kind.key}_streams&category_id=$categoryId"
-                val mark = SystemClock.elapsedRealtime()
-                val text = runCatching { loadCategoryLocked(id, kind, categoryId, client) }.fold(
-                    onSuccess = { load ->
-                        if (load.filtered) {
-                            "aceita: a 1ª categoria trouxe ${load.items} itens em ${SystemClock.elapsedRealtime() - mark} ms (carrega por categoria)"
-                        } else {
-                            "não filtra: devolveu todos os ${load.items} itens (lê a parte inteira de uma vez, em segundo plano)"
-                        }
-                    },
-                    onFailure = { "não respondeu: ${it.javaClass.simpleName} (as categorias carregam depois)" },
-                )
-                report.add("Recursos do provedor: pedir canais de uma categoria só", null, "$url → $text", text.startsWith("aceita"))
-            }
         }
         refreshSources()
         _changes.value++
@@ -567,6 +587,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         }
         val built = report.build()
         if (debug) Log.i(TAG, "relatorio de conexao:\n${built.asText()}")
+        saveReport(built.asText())
         return when (result) {
             is ImportResult.Success -> result.copy(report = built)
             is ImportResult.Failure -> result.copy(report = built)
@@ -604,7 +625,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     }
 
     /** Todos os itens de uma parte que já estão no aparelho ("Todos os canais"). */
-    suspend fun sectionItems(kind: SectionKind, limit: Int = 5_000): List<CardItem> = io {
+    suspend fun sectionItems(kind: SectionKind, limit: Int = 50_000): List<CardItem> = io {
         query("WHERE tipo = ? ORDER BY fonte_id, posicao LIMIT ?", kind.key, limit.toString())
     }
 
@@ -639,13 +660,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     /** Itens de uma categoria. Se ainda não chegaram, busca agora (passando na frente do segundo plano). */
     suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> = withContext(Dispatchers.IO) {
         runCatching {
-            categoryLock.withLock {
-                val pending = database.readableDatabase.rawQuery(
-                    "SELECT carregada FROM categorias WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
-                    arrayOf(ref.sourceId.toString(), ref.kind.key, ref.id),
-                ).use { c -> c.moveToFirst() && c.getInt(0) == 0 }
-                if (pending) providerClient(ref.sourceId)?.let { loadCategoryLocked(ref.sourceId, ref.kind, ref.id, it) }
-            }
+            if (!isLoaded(ref.sourceId, ref.kind, ref.id)) providerClient(ref.sourceId)?.let { loadCategory(ref.sourceId, ref.kind, ref.id, it) }
             val group = database.readableDatabase.rawQuery(
                 "SELECT grupo FROM categorias WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
                 arrayOf(ref.sourceId.toString(), ref.kind.key, ref.id),
@@ -659,7 +674,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
      * (TV primeiro, depois filmes e séries) ou, se o provedor só entrega a lista completa, lendo-a aos poucos.
      * Pode ser interrompido a qualquer momento (sair da conta, fechar o app): continua de onde parou depois.
      */
-    suspend fun loadPending() = withContext(Dispatchers.IO) {
+    suspend fun loadPending() = withContext(backgroundDispatcher) {
         val pending = database.readableDatabase.rawQuery(
             "SELECT id, endereco_cifrado, conta FROM fontes WHERE completa = 0 AND tipo = ? ORDER BY id",
             arrayOf(SourceKind.Provider.key),
@@ -699,7 +714,18 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                 arrayOf(id.toString()),
             ).use { c -> if (c.moveToFirst()) SectionKind.of(c.getString(0)) to c.getString(1) else null } ?: return true
             try {
-                categoryLock.withLock { loadCategoryLocked(id, next.first, next.second, client) }
+                val mark = SystemClock.elapsedRealtime()
+                val load = loadCategory(id, next.first, next.second, client)
+                if (done == 0) {
+                    // 1ª categoria desta lista: o relatório ganha a resposta "o provedor aceita pedir por categoria?".
+                    appendReport(
+                        "Recursos do provedor: pedir canais de uma categoria só: " + if (load.filtered) {
+                            "ok (aceita: ${load.items} itens em ${SystemClock.elapsedRealtime() - mark} ms)"
+                        } else {
+                            "não filtra (devolveu a parte inteira: ${load.items} itens; carrega tudo de uma vez em segundo plano)"
+                        },
+                    )
+                }
                 failures = 0
             } catch (e: IOException) {
                 if (debug) Log.i(TAG, "segundo plano: categoria falhou (${e.javaClass.simpleName})")
@@ -730,7 +756,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                     try {
                         parseM3u(InputStreamReader(input, Charsets.UTF_8)) { entry ->
                             insertItem(insert, id, count.toLong(), entry, SectionKind.guess(entry.url, entry.group))
-                            if (++count % 2_000 == 0) {
+                            // O 1º lote é pequeno: a tela de escolha mostra categorias logo.
+                            if (++count == 200 || count % 2_000 == 0) {
                                 commitBatch(db, id)
                                 _loading.value = LoadProgress(0, 0, count)
                                 db.beginTransaction()
@@ -762,44 +789,83 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
 
     private class CategoryLoad(val items: Int, val filtered: Boolean)
 
+    private fun isLoaded(sourceId: Long, kind: SectionKind, categoryId: String) = database.readableDatabase.rawQuery(
+        "SELECT carregada FROM categorias WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
+        arrayOf(sourceId.toString(), kind.key, categoryId),
+    ).use { c -> !c.moveToFirst() || c.getInt(0) == 1 }
+
     /**
-     * Busca os itens de uma categoria e grava. Se o provedor ignorar o filtro e mandar a parte inteira,
-     * aproveita tudo (cada item na sua categoria) e marca a parte toda como carregada.
-     * Precisa ser chamado com [categoryLock] (ou antes de a lista aparecer para a pessoa).
+     * Busca os itens de uma categoria e grava. A conversa com o provedor e a cifragem dos endereços
+     * acontecem fora da trava e fora do banco; só a gravação usa a trava, em lotes curtos.
+     * Se o provedor ignorar o filtro e mandar a parte inteira, aproveita tudo (cada item na sua categoria).
      */
-    private fun loadCategoryLocked(sourceId: Long, kind: SectionKind, categoryId: String, client: XtreamClient): CategoryLoad {
+    private suspend fun loadCategory(sourceId: Long, kind: SectionKind, categoryId: String, client: XtreamClient): CategoryLoad {
+        if (isLoaded(sourceId, kind, categoryId)) return CategoryLoad(0, true)
+        val received = ArrayList<Pair<String?, M3uEntry>>()
+        client.streams(kind, categoryId) { category, entry -> received += category to entry }
+        val filtered = received.all { it.first == null || it.first == categoryId }
+        val encrypted = received.map { crypto.encrypt(it.second.url) }
+        categoryLock.withLock { writeCategory(sourceId, kind, categoryId, received, encrypted, filtered) }
+        return CategoryLoad(received.size, filtered)
+    }
+
+    private fun writeCategory(
+        sourceId: Long,
+        kind: SectionKind,
+        categoryId: String,
+        received: List<Pair<String?, M3uEntry>>,
+        encrypted: List<String>,
+        filtered: Boolean,
+    ) {
         val db = database.writableDatabase
         val known = HashMap<String, Pair<String, Boolean>>()
         db.rawQuery("SELECT cat_id, grupo, carregada FROM categorias WHERE fonte_id = ? AND tipo = ?", arrayOf(sourceId.toString(), kind.key))
             .use { c -> while (c.moveToNext()) known[c.getString(0)] = c.getString(1) to (c.getInt(2) == 1) }
-        if (known[categoryId]?.second == true) return CategoryLoad(0, true)
-        val received = ArrayList<Pair<String?, M3uEntry>>()
-        client.streams(kind, categoryId) { category, entry -> received += category to entry }
-        val filtered = received.all { it.first == null || it.first == categoryId }
+        if (known[categoryId]?.second == true) return // a outra busca (tela ou segundo plano) chegou antes
+        // Restos de uma gravação interrompida (app fechado no meio) saem antes de gravar de novo.
+        if (filtered) {
+            known[categoryId]?.first?.let { group ->
+                db.delete("itens", "fonte_id = ? AND tipo = ? AND grupo = ?", arrayOf(sourceId.toString(), kind.key, group))
+            }
+        } else {
+            db.execSQL(
+                "DELETE FROM itens WHERE fonte_id = ? AND tipo = ? AND grupo IN (SELECT grupo FROM categorias WHERE fonte_id = ? AND tipo = ? AND carregada = 0)",
+                arrayOf<Any>(sourceId, kind.key, sourceId, kind.key),
+            )
+        }
+        var position = db.rawQuery("SELECT IFNULL(MAX(posicao), -1) + 1 FROM itens WHERE fonte_id = ?", arrayOf(sourceId.toString()))
+            .use { c -> c.moveToFirst(); c.getLong(0) }
+        val insert = itemInsert(db)
+        val counts = HashMap<String, Int>()
+        received.indices.chunked(1_000).forEach { chunk ->
+            db.beginTransaction()
+            try {
+                for (index in chunk) {
+                    val (category, entry) = received[index]
+                    val target = if (filtered) categoryId else category ?: OTHERS_ID
+                    if (known[target]?.second == true) continue
+                    val group = known[target]?.first ?: "${kind.groupPrefix} · Outros".also { group ->
+                        // Item de uma categoria que não veio na lista de categorias: entra em "Outros".
+                        db.execSQL(
+                            "INSERT OR IGNORE INTO categorias (fonte_id, tipo, cat_id, nome, grupo, posicao, carregada, itens) VALUES (?, ?, ?, 'Outros', ?, 999999, 0, 0)",
+                            arrayOf<Any>(sourceId, kind.key, target, group),
+                        )
+                        known[target] = group to false
+                    }
+                    insertItem(insert, sourceId, position++, entry.copy(group = group), kind, encrypted[index])
+                    counts[target] = (counts[target] ?: 0) + 1
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        }
         db.beginTransaction()
         try {
-            var position = db.rawQuery("SELECT IFNULL(MAX(posicao), -1) + 1 FROM itens WHERE fonte_id = ?", arrayOf(sourceId.toString()))
-                .use { c -> c.moveToFirst(); c.getLong(0) }
-            val insert = itemInsert(db)
-            val counts = HashMap<String, Int>()
-            for ((category, entry) in received) {
-                val target = if (filtered) categoryId else category ?: OTHERS_ID
-                if (known[target]?.second == true) continue
-                val group = known[target]?.first ?: "${kind.groupPrefix} · Outros".also { group ->
-                    // Item de uma categoria que não veio na lista de categorias: entra em "Outros".
-                    db.execSQL(
-                        "INSERT OR IGNORE INTO categorias (fonte_id, tipo, cat_id, nome, grupo, posicao, carregada, itens) VALUES (?, ?, ?, 'Outros', ?, 999999, 0, 0)",
-                        arrayOf<Any>(sourceId, kind.key, target, group),
-                    )
-                    known[target] = group to false
-                }
-                insertItem(insert, sourceId, position++, entry.copy(group = group), kind)
-                counts[target] = (counts[target] ?: 0) + 1
-            }
             val loadedNow = if (filtered) listOf(categoryId) else known.filterValues { !it.second }.keys.toList()
             loadedNow.forEach { category ->
                 db.execSQL(
-                    "UPDATE categorias SET carregada = 1, itens = itens + ? WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
+                    "UPDATE categorias SET carregada = 1, itens = ? WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
                     arrayOf<Any>(counts[category] ?: 0, sourceId, kind.key, category),
                 )
             }
@@ -809,7 +875,6 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             db.endTransaction()
         }
         _changes.value++
-        return CategoryLoad(received.size, filtered)
     }
 
     /** A 1ª categoria a carregar (TV primeiro). */
