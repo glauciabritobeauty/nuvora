@@ -229,14 +229,17 @@ login_form() {
 }
 
 # link_form endereço: entra pela opção discreta "Link da lista" e aperta ENTRAR.
+# O "&" e o "?" do link precisam de uma barra antes para chegarem inteiros pelo adb.
+adb_text() { adb shell input text "$(printf '%s' "$1" | sed 's/[&?]/\\&/g')"; }
+
 link_form() {
   if [ "$NAME" = "tv" ]; then
     focus "entrada"; focus_until "Link da lista" $D; key $OK; sleep 2; focus "campo do link"
-    focus_until "LINK DA LISTA" $U; key $OK; sleep 1; adb shell input text "$1"; key $BACK
+    focus_until "LINK DA LISTA" $U; key $OK; sleep 1; adb_text "$1"; key $BACK
     focus_until "ENTRAR" $D; key $OK
   else
     tap_text "Link da lista"
-    tap_text "http://..."; adb shell input text "$1"; key KEYCODE_BACK
+    tap_text "http://..."; adb_text "$1"; key KEYCODE_BACK
     tap_text "ENTRAR"
   fi
 }
