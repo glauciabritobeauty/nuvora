@@ -219,6 +219,35 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         }.ifEmpty { null }
     }
 
+    /** Endereço que valeu de verdade no último login (sem desvio). */
+    @Volatile
+    private var lastEffectiveServer: String? = null
+
+    /** Sites de vídeo que já se sabe que não desviam (não precisa perguntar de novo). */
+    private val noRedirectHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * Filmes e episódios: o provedor costuma mandar o vídeo para outro servidor (desvio). O player faz vários
+     * pedidos para começar (e mais ainda para continuar de onde parou), e cada um repetiria o desvio.
+     * Aqui o desvio é feito UMA vez e o player recebe o endereço final. Devolve o endereço e quantos desvios havia.
+     * Canais ao vivo ficam de fora (o endereço final deles costuma expirar).
+     */
+    suspend fun resolveVideo(url: String): Pair<String, Int> = withContext(Dispatchers.IO) {
+        val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return@withContext url to 0
+        if (host in noRedirectHosts || !url.startsWith("http", ignoreCase = true)) return@withContext url to 0
+        runCatching {
+            val reply = httpProbe(url, maxBytes = 1, headers = mapOf("Range" to "bytes=0-0"), timeoutMs = 4_000)
+            if (reply.redirects.isEmpty()) {
+                noRedirectHosts += host
+                url to 0
+            } else if (reply.code in 200..299) {
+                reply.redirects.last() to reply.redirects.size
+            } else {
+                url to 0
+            }
+        }.getOrDefault(url to 0)
+    }
+
     /** Vídeo tocando: o segundo plano espera (não disputa a internet com o vídeo). */
     @Volatile
     var videoPlaying = false
@@ -333,8 +362,10 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         val providerName = name.trim().ifEmpty { runCatching { java.net.URI(clean.server).host }.getOrNull().orEmpty() }
         connectProvider(sourceId = null, name = providerName, login = clean, report = report, onProgress = onProgress).also { result ->
             if (result is ImportResult.Success) {
-                prefs.edit().putString("servidor_cifrado", crypto.encrypt(clean.server)).apply()
-                _savedServer.value = clean.server
+                // Guarda o endereço que vale de verdade: da próxima vez o login já vai direto (sem desvio).
+                val effective = lastEffectiveServer ?: clean.server
+                prefs.edit().putString("servidor_cifrado", crypto.encrypt(effective)).apply()
+                _savedServer.value = effective
             }
         }
     }
@@ -607,6 +638,7 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
             }
             categoryCount = sections.values.sumOf { it.size }
             // Guarda o endereço que vale de verdade (sem o desvio https → http do provedor).
+            lastEffectiveServer = client.server
             id = saveProvider(sourceId, name, login.copy(server = client.server), account, sections)
         } catch (e: Exception) {
             return finishReport(report, failureOf(e, SourceKind.Provider))

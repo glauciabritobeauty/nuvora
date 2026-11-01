@@ -110,6 +110,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             onSaveProgress = { position, duration -> viewModel.saveProgress(request, position, duration) },
             onClose = viewModel::closePlayer,
             onFirstFrame = { viewModel.noteFirstFrame(request, it) },
+            onSummary = { stalls, stalledMs, seeks, watchedMs -> viewModel.noteVideoSummary(request, stalls, stalledMs, seeks, watchedMs) },
         )
         return
     }

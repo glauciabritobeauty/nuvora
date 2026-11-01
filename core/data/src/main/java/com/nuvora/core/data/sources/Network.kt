@@ -32,17 +32,24 @@ internal class HttpReply(
  * Segue redirecionamentos (inclusive http → https) e, se o certificado do https for inválido, tenta pelo http.
  * [form]: se informado, o pedido vai como POST de formulário.
  */
-internal fun httpProbe(address: String, form: String? = null, maxBytes: Int = 64 * 1024): HttpReply {
+internal fun httpProbe(
+    address: String,
+    form: String? = null,
+    maxBytes: Int = 64 * 1024,
+    headers: Map<String, String> = emptyMap(),
+    timeoutMs: Int = 30_000,
+): HttpReply {
     val started = SystemClock.elapsedRealtime()
     val redirects = ArrayList<String>()
     var current = address
     var hops = 0
     while (true) {
         val connection = (URL(current).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
+            connectTimeout = minOf(15_000, timeoutMs)
+            readTimeout = timeoutMs
             instanceFollowRedirects = false
             setRequestProperty("User-Agent", NUVORA_USER_AGENT)
+            headers.forEach { (name, value) -> setRequestProperty(name, value) }
             if (form != null) {
                 requestMethod = "POST"
                 doOutput = true

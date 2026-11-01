@@ -338,21 +338,38 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
                     val list = sourcesRepo.episodes(id)
                     if (list.isEmpty()) onUnavailable() else _episodes.value = SeriesEpisodes(id, request.title, list)
                 }
-                else -> _playing.value = request
+                else -> _playing.value = withDirectUrl(request)
             }
         }
     }
 
     fun playEpisode(series: SeriesEpisodes, episode: Episode) {
         _episodes.value = null
-        _playing.value = PlaybackRequest(
-            id = "${series.itemId}-e${episode.id}",
-            title = "${series.title} · ${episode.label}",
-            subtitle = null,
-            url = episode.url,
-            mimeType = null,
-            imageUrl = null,
-        )
+        viewModelScope.launch {
+            _playing.value = withDirectUrl(
+                PlaybackRequest(
+                    id = "${series.itemId}-e${episode.id}",
+                    title = "${series.title} · ${episode.label}",
+                    subtitle = null,
+                    url = episode.url,
+                    mimeType = null,
+                    imageUrl = null,
+                ),
+            )
+        }
+    }
+
+    /** Desvios do último vídeo aberto (para o cronômetro). */
+    private var lastRedirects = 0
+
+    /** Filme ou episódio: já entrega ao player o endereço final (o desvio do provedor é feito uma vez só). */
+    private suspend fun withDirectUrl(request: PlaybackRequest): PlaybackRequest {
+        lastRedirects = 0
+        val vod = request.url.contains("/movie/") || request.url.contains("/series/")
+        if (!vod) return request
+        val (direct, hops) = sourcesRepo.resolveVideo(request.url)
+        lastRedirects = hops
+        return if (direct == request.url) request else request.copy(url = direct)
     }
 
     fun closeEpisodes() {
@@ -362,12 +379,22 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** O player avisa quando o vídeo apareceu (vai para o cronômetro do relatório). */
     fun noteFirstFrame(request: PlaybackRequest, millis: Long) {
         val kind = when {
-            request.url.contains("/movie/") -> "filme"
-            request.url.contains("/series/") -> "episódio"
+            request.id.contains("-e") -> "episódio"
+            request.url.contains("/movie/") || request.url.endsWith(".mp4") || request.url.endsWith(".mkv") -> "filme"
             else -> "canal"
         }
         val secure = if (request.url.startsWith("https://", ignoreCase = true)) "https" else "http"
-        sourcesRepo.notePerformance("Vídeo ($kind, $secure) \"${request.title.take(40)}\" começou em $millis ms")
+        val hops = if (lastRedirects > 0) ", desvio feito antes: $lastRedirects" else ""
+        sourcesRepo.notePerformance("Vídeo ($kind, $secure$hops) \"${request.title.take(40)}\" começou em $millis ms")
+    }
+
+    /** Ao fechar o vídeo: quantas vezes travou para carregar e quantas vezes a pessoa pulou (avançar/voltar). */
+    fun noteVideoSummary(request: PlaybackRequest, stalls: Int, stalledMs: Long, seeks: Int, watchedMs: Long) {
+        if (watchedMs < 3_000) return
+        val stallText = if (stalls == 0) "não travou" else "travou $stalls vez(es), ${"%.1f".format(stalledMs / 1000.0)} s parado"
+        sourcesRepo.notePerformance(
+            "  ↳ \"${request.title.take(30)}\": assistido ${watchedMs / 1000} s, $stallText, pulos (avançar/voltar): $seeks",
+        )
     }
 
     fun closePlayer() {

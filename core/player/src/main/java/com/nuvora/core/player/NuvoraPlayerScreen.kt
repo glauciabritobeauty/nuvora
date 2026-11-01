@@ -121,13 +121,16 @@ fun NuvoraPlayerScreen(
     subtitleMode: SubtitleMode,
     onSaveProgress: (positionMs: Long, durationMs: Long) -> Unit,
     onClose: () -> Unit,
-    /** Avisado quando o 1º quadro do vídeo aparece (tempo desde que o player abriu, em ms). */
+    /** Avisado UMA vez, quando o 1º quadro do vídeo aparece (tempo desde que o player abriu, em ms). */
     onFirstFrame: (millis: Long) -> Unit = {},
+    /** Avisado ao fechar: travadas para carregar (quantas e tempo parado), pulos e tempo assistido. */
+    onSummary: (stalls: Int, stalledMs: Long, seeks: Int, watchedMs: Long) -> Unit = { _, _, _, _ -> },
 ) {
     val context = LocalContext.current
     val isTv = NuvoraTheme.isTv
     val saveProgress by rememberUpdatedState(onSaveProgress)
     val firstFrame by rememberUpdatedState(onFirstFrame)
+    val summary by rememberUpdatedState(onSummary)
 
     val openedAt = remember(request.id) { SystemClock.elapsedRealtime() }
     val player = remember(request.id) { createPlayer(context, request, startPositionMs, subtitleMode) }
@@ -160,6 +163,12 @@ fun NuvoraPlayerScreen(
         var checkedStart = false
         var triedHttp = false
         var subtitlesDecided = false
+        // Cronômetro: 1º quadro (uma vez só), travadas depois de começar e pulos da pessoa.
+        var firstFrameAt = 0L
+        var stalls = 0
+        var stalledMs = 0L
+        var stallStartedAt = 0L
+        var seeks = 0
         val listener = object : Player.Listener {
             override fun onEvents(p: Player, events: Player.Events) {
                 isPlaying = p.isPlaying
@@ -167,6 +176,15 @@ fun NuvoraPlayerScreen(
                 ended = p.playbackState == Player.STATE_ENDED
                 if (p.duration > 0) duration = p.duration
                 position = p.currentPosition
+                if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED) && firstFrameAt > 0) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (p.playbackState == Player.STATE_BUFFERING && stallStartedAt == 0L) stallStartedAt = now
+                    if (p.playbackState != Player.STATE_BUFFERING && stallStartedAt > 0) {
+                        stalls++
+                        stalledMs += now - stallStartedAt
+                        stallStartedAt = 0L
+                    }
+                }
                 // Se a posição salva já passou do fim deste vídeo, começa do início.
                 if (!checkedStart && p.playbackState == Player.STATE_READY) {
                     checkedStart = true
@@ -200,8 +218,19 @@ fun NuvoraPlayerScreen(
             }
 
             override fun onRenderedFirstFrame() {
-                diag.log("medida primeiro quadro ${SystemClock.elapsedRealtime() - openedAt} ms")
-                firstFrame(SystemClock.elapsedRealtime() - openedAt)
+                // O player avisa de novo depois de cada pulo; para o cronômetro vale só o primeiro.
+                if (firstFrameAt > 0) return
+                firstFrameAt = SystemClock.elapsedRealtime()
+                diag.log("medida primeiro quadro ${firstFrameAt - openedAt} ms")
+                firstFrame(firstFrameAt - openedAt)
+            }
+
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK && firstFrameAt > 0) {
+                    seeks++
+                    // Carregar depois de um pulo não é "travar".
+                    stallStartedAt = 0L
+                }
             }
 
             override fun onCues(cueGroup: CueGroup) {
@@ -220,6 +249,7 @@ fun NuvoraPlayerScreen(
         diag.log("aberto id=${request.id}")
         onDispose {
             save()
+            if (firstFrameAt > 0) summary(stalls, stalledMs, seeks, SystemClock.elapsedRealtime() - firstFrameAt)
             player.removeListener(listener)
             player.release()
             diag.log("fechado (player liberado)")
