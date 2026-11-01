@@ -480,3 +480,25 @@ Versão de segurança: tag `seguranca-0.9.1-antes-entrada` + `apk/seguranca/nuvo
 - Telas deitadas/tablet/TV: marca à esquerda, formulário à direita. TV: foco começa em USUÁRIO; olho é um botão ao lado (seta para a direita); teclado: Próximo/Ir.
 - Mesmo mecanismo de login da etapa anterior (relatório, plano B).
 Testes CI (APK otimizada 0.9.2): login celular 42 ok / TV 20 ok, 0 falhas; telas tablet 154 ok, TV 0 falhas, celular só as 24 conhecidas do menu de baixo; 0 erros registrados. Numa rodada intermediária o tablet teve 1 falha passageira ("vídeo não andou depois que a internet voltou") que não se repetiu.
+
+## Etapa 2: tela de escolha + carregamento sob demanda (v0.9.3) — testada no emulador, aguardando teste no aparelho
+Versão de segurança: tag `seguranca-0.9.2-antes-carregamento` + `apk/seguranca/nuvora-0.9.2-entrada.apk`.
+- Login confere a senha e busca só as categorias (3 pedidos pequenos) + a 1ª categoria da TV; vai direto para a tela de escolha (sem "Pronto!").
+- Tela de escolha (estilo CasaTV, visual NUVORA): "Olá!" + usuário · vencimento · telas; blocos TV ao vivo / Filmes / Séries; Atualizar e Sair da conta; aviso honesto "carregando em segundo plano: X de Y categorias".
+- Dentro de cada parte (referência mandada pela Glaucia): voltar, título, busca da parte, categorias em linha (★ Favoritos, Todos, ...), capas 3 por linha com nome e nota ★ (filmes/séries) ou lista número+logo+nome (TV ao vivo).
+- Categoria aberta é buscada na hora (passa na frente); o resto carrega em segundo plano (TV, depois filmes, depois séries). Se o provedor ignorar o filtro por categoria, aproveita a parte inteira. Plano B (só lista completa): lida direto da conexão em lotes de 2.000, com a tela já liberada.
+- Banco v2 (categorias, parte, nota, conta, completa); listas antigas migradas. Downloads com arquivo temporário próprio.
+- TV: "Categorias" saiu do menu (a tela de escolha leva às categorias).
+
+Medição a 8 Mega (emulador, provedor grande: 180 categorias, 44.000 itens), versão otimizada:
+| | Celular | TV |
+|---|---|---|
+| Antes (Fase A): esperar tudo depois da senha | 20,5 s | 20,1 s |
+| Agora: senha + categorias (anotação do app) | 0,94 s | 0,51 s |
+| Agora: tocar ENTRAR até ver a tela de escolha (cronômetro do teste, lê a tela a cada ~5 s) | ≤ 6 s | ≤ 3 s |
+| Abrir TV ao vivo até ver os canais | 2 s | 2 s |
+| Lista inteira no aparelho (em segundo plano, sem travar) | 42 s | 38 s |
+| Memória na tela de escolha | 33 MB (antes 50) | 34 MB (antes 51) |
+| Canal começar | 3,0 s (antes 2,2) | 2,3 s (antes 1,0) |
+Canal um pouco mais lento que na Fase A: a investigar na Fase E (player). O filme pela busca não foi medido nesta rodada (o roteiro não achou a aba Buscar no emulador).
+Testes: login celular 47 ok / TV 22 ok, 0 falhas; telas tablet 154 ok, TV 0 falhas, celular só as falhas conhecidas do menu de baixo (recuperadas pela posição); 0 erros registrados.
