@@ -471,3 +471,12 @@ Testes (CI, emulador, APK otimizada 0.9.1), servidor `ci/provedor_intermediario.
 - Cenário 3 (padrão funciona): 25 itens, consulta por categoria "aceita" (5 de 20), Home, canal tocando.
 - Regressão (telas.sh): celular/tablet/TV sem travar e sem erros; celular com as 24 falhas conhecidas do menu de baixo (recuperadas pela posição).
 Ainda não verificado: o provedor real com os dados verdadeiros (só no aparelho da Glaucia, pelo relatório).
+
+## Nova tela de entrada (v0.9.2) — aprovada pela Glaucia em prévia, testada no emulador, aguardando teste no aparelho
+Versão de segurança: tag `seguranca-0.9.1-antes-entrada` + `apk/seguranca/nuvora-0.9.1-login.apk`.
+- Entrada direta (estilo CasaTV, visual NUVORA): logo, "Entre com seu usuário e senha", USUÁRIO, SENHA com olho, "+ Usar outro servidor (DNS)", ENTRAR largo; "Outras formas: Link da lista · Arquivo M3U" discreto (arquivo só no celular).
+- Sem servidor padrão inventado: ENTRAR sem servidor abre o campo Servidor (DNS) com explicação. Servidor do último login que deu certo fica salvo cifrado ("Servidor: x · Trocar").
+- Link inteiro colado em Usuário ou Servidor é separado sozinho. Confirmação de direito virou aviso embaixo do ENTRAR. Nome da lista automático.
+- Telas deitadas/tablet/TV: marca à esquerda, formulário à direita. TV: foco começa em USUÁRIO; olho é um botão ao lado (seta para a direita); teclado: Próximo/Ir.
+- Mesmo mecanismo de login da etapa anterior (relatório, plano B).
+Testes CI (APK otimizada 0.9.2): login celular 42 ok / TV 20 ok, 0 falhas; telas tablet 154 ok, TV 0 falhas, celular só as 24 conhecidas do menu de baixo; 0 erros registrados. Numa rodada intermediária o tablet teve 1 falha passageira ("vídeo não andou depois que a internet voltou") que não se repetiu.
