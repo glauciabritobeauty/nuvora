@@ -367,6 +367,10 @@ fun AddSourceScreen(
                 EntryMode.Link -> onSaveLink(linkName(link), link, onProgress)
                 EntryMode.File -> onSaveFile(fileName.orEmpty().substringBeforeLast('.'), Uri.parse(fileUri), onProgress)
             }
+            if (result is ImportResult.Success && mode == EntryMode.Login) {
+                onFinished()
+                return@launch
+            }
             status = when (result) {
                 is ImportResult.Success -> SaveStatus.Done(result.itemCount, result.report)
                 is ImportResult.Failure -> SaveStatus.Failed(result.reason.message, result.detail, result.report)

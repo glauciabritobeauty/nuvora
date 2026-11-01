@@ -64,6 +64,8 @@ fun NuvoraTextField(
     focusRequester: FocusRequester? = null,
     /** Título pequeno DENTRO da caixa, acima do texto (em vez de em cima dela). */
     labelInside: Boolean = false,
+    /** false = sem título (ex.: campo de busca, que já diz "Buscar" dentro). */
+    showLabel: Boolean = true,
     /** Senha: mostra o botão de olho para ver ou esconder o que foi digitado. */
     revealToggle: Boolean = false,
     /** Botão do teclado: Próximo (vai para o campo de baixo) ou Concluir/Ir (chama [onImeAction]). */
@@ -87,7 +89,7 @@ fun NuvoraTextField(
         }
     }
     Column(modifier.fillMaxWidth()) {
-        if (!labelInside) NuvoraText(label, NuvoraTheme.typography.label, modifier = Modifier.padding(bottom = 6.dp))
+        if (!labelInside && showLabel) NuvoraText(label, NuvoraTheme.typography.label, modifier = Modifier.padding(bottom = 6.dp))
         val field = @Composable { inner: Modifier ->
             BasicTextField(
                 value = value,
@@ -150,7 +152,7 @@ fun NuvoraTextField(
                                 .weight(1f)
                                 .padding(horizontal = 16.dp, vertical = if (labelInside) 10.dp else 12.dp),
                         ) {
-                            if (labelInside) {
+                            if (labelInside && showLabel) {
                                 NuvoraText(
                                     label.uppercase(),
                                     NuvoraTheme.typography.caption,

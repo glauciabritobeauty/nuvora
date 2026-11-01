@@ -9,6 +9,8 @@ data class M3uEntry(
     val url: String,
     val logo: String?,
     val group: String?,
+    /** Nota do filme/série (ex.: "7.5"), quando o provedor manda. */
+    val rating: String? = null,
 )
 
 /** Resultado da leitura: se o arquivo parece mesmo uma lista e quantos itens válidos tinha. */

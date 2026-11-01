@@ -26,6 +26,13 @@ import com.nuvora.core.data.sources.ImportResult
 import com.nuvora.core.data.sources.SourceCatalog
 import com.nuvora.core.data.sources.SourceInfo
 import com.nuvora.core.data.sources.SourcesRepository
+import com.nuvora.core.data.sources.CategoryRef
+import com.nuvora.core.data.sources.HubData
+import com.nuvora.core.data.sources.LoadProgress
+import com.nuvora.core.data.sources.SectionKind
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -82,6 +89,28 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** Servidor (DNS) do último login que deu certo (null = nenhum ainda). */
     val savedServer: StateFlow<String?> = sourcesRepo.savedServer
 
+    /** Andamento do carregamento em segundo plano (null = nada carregando). */
+    val loading: StateFlow<LoadProgress?> = sourcesRepo.loading
+
+    private val _hub = MutableStateFlow<HubData?>(null)
+
+    /** Tela de escolha: conta, TV ao vivo / Filmes / Séries e contagens (null = ainda lendo). */
+    val hub: StateFlow<HubData?> = _hub.asStateFlow()
+
+    private var background: Job? = null
+
+    /** Muda toda vez que chegam itens novos. */
+    val changes: StateFlow<Long> = sourcesRepo.changes
+
+    /** Botão Atualizar da tela de escolha: tenta de novo o que falhou ou lê as listas outra vez. */
+    fun refreshAll() {
+        if (sourcesRepo.loading.value?.failed == true) {
+            retryLoading()
+            return
+        }
+        viewModelScope.launch { sources.value.forEach { refreshSource(it.id) } }
+    }
+
     private val _episodes = MutableStateFlow<SeriesEpisodes?>(null)
 
     /** Série aberta esperando a pessoa escolher o episódio (null = nenhuma). */
@@ -106,10 +135,58 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             sourcesRepo.load()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
+            loadInBackground()
+            // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
             sourcesRepo.sources.collectLatest { list ->
                 catalog.value = if (list.isEmpty()) null else sourcesRepo.loadCatalog()
                 sourcesReady.value = true
             }
+        }
+        viewModelScope.launch {
+            // A tela de escolha acompanha cada lote que chega (no máximo 2 vezes por segundo).
+            combine(sourcesRepo.sources, sourcesRepo.changes) { _, _ -> }.collectLatest {
+                _hub.value = sourcesRepo.hub()
+                delay(500)
+            }
+        }
+    }
+
+    /** Carrega em segundo plano o que falta das listas de provedor (sem travar nada). */
+    private fun loadInBackground() {
+        if (background?.isActive == true) return
+        background = viewModelScope.launch { sourcesRepo.loadPending() }
+    }
+
+    /** Categorias de uma parte (TV ao vivo, Filmes, Séries). */
+    suspend fun categories(kind: SectionKind): List<CategoryRef> = sourcesRepo.categories(kind)
+
+    /** Itens de uma categoria (busca na hora se ainda não chegaram). */
+    suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> = sourcesRepo.categoryItems(ref)
+
+    /** Todos os itens de uma parte que já chegaram. */
+    suspend fun sectionItems(kind: SectionKind): List<CardItem> = sourcesRepo.sectionItems(kind)
+
+    /** Busca dentro de uma parte. */
+    suspend fun searchIn(kind: SectionKind, text: String): List<CardItem> = sourcesRepo.searchIn(kind, text)
+
+    /** Favoritos desta parte. */
+    suspend fun favoritesIn(kind: SectionKind): List<CardItem> =
+        sourcesRepo.favoritesIn(kind, library.favorites.value.map { it.id })
+
+    /** Tenta de novo o carregamento em segundo plano (botão Atualizar quando algo falhou). */
+    fun retryLoading() {
+        background?.cancel()
+        background = null
+        loadInBackground()
+    }
+
+    /** "Sair da conta": tira todas as listas do aparelho (o servidor salvo continua, para entrar de novo fácil). */
+    fun logout(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            background?.cancelAndJoin()
+            background = null
+            sourcesRepo.sources.value.forEach { sourcesRepo.remove(it.id) }
+            onDone()
         }
     }
 
@@ -133,12 +210,21 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         sourcesRepo.addFile(name, uri, onProgress)
 
     suspend fun addProviderSource(name: String, login: ProviderLogin, onProgress: (ImportProgress) -> Unit): ImportResult =
-        sourcesRepo.addProvider(name, login, onProgress)
+        sourcesRepo.addProvider(name, login, onProgress).also { if (it is ImportResult.Success) loadInBackground() }
 
-    suspend fun refreshSource(id: Long): ImportResult = sourcesRepo.refresh(id)
+    suspend fun refreshSource(id: Long): ImportResult {
+        background?.cancelAndJoin()
+        background = null
+        return sourcesRepo.refresh(id).also { loadInBackground() }
+    }
 
     fun removeSource(id: Long) {
-        viewModelScope.launch { sourcesRepo.remove(id) }
+        viewModelScope.launch {
+            background?.cancelAndJoin()
+            background = null
+            sourcesRepo.remove(id)
+            loadInBackground()
+        }
     }
 
     // ---- Favoritos e histórico ----

@@ -11,6 +11,8 @@ data class CardItem(
     val category: String? = null,
     val caption: String? = null,
     val progress: Float? = null,
+    /** Nota (ex.: "7.5") para o selo ★ das capas. */
+    val rating: String? = null,
 )
 
 @Immutable

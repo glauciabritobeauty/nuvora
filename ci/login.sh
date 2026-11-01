@@ -33,7 +33,8 @@ check_contains() {
 # Confere que a senha e o usuário de teste não aparecem nem na tela nem nas anotações do app.
 check_secret() {
   read_ui
-  if grep -qF "$SENHA" ui.xml || grep -qF "$1" ui.xml; then falha "senha ou usuário apareceu na tela ($2)"; else echo "ok: senha e usuário não aparecem na tela ($2)" >> "$STEPS"; fi
+  # O usuário aparece de propósito no topo da tela de escolha (como no CasaTV); a senha nunca.
+  if grep -qF "$SENHA" ui.xml; then falha "senha apareceu na tela ($2)"; else echo "ok: senha não aparece na tela ($2)" >> "$STEPS"; fi
   if adb logcat -d -s NuvoraFontes:I NuvoraPlayer:I | grep -qE "$SENHA|$1"; then falha "senha ou usuário apareceu nas anotações ($2)"; else echo "ok: senha e usuário não aparecem nas anotações ($2)" >> "$STEPS"; fi
 }
 
@@ -55,6 +56,23 @@ login() {
 open_report() {
   if [ "$NAME" = "tv" ]; then focus "relatório"; focus_until "Ver relatório de conexão" $U; focus_until "Ver relatório de conexão" $D; key $OK; else tap_text "Ver relatório de conexão"; fi
   sleep 2
+}
+
+# Confere uma linha do relatório de conexão (o app anota o relatório já sem senha).
+check_report() {
+  if grep -qF "$2" "$OUT/$NAME-relatorio-$1.txt"; then echo "ok: relatório contém '$2'" >> "$STEPS"; else falha "relatório não contém '$2'"; fi
+}
+
+# Da tela de escolha: abre TV ao vivo, espera o canal $1 aparecer e toca.
+open_live_and_play() {
+  if [ "$NAME" = "tv" ]; then focus "tela de escolha"; focus_until "TV ao vivo" $U; key $OK; else tap_text "TV ao vivo"; fi
+  sleep 3
+  wait_text "$1" 60; shot "login-$2-tv-ao-vivo"
+  adb logcat -c
+  if [ "$NAME" = "tv" ]; then focus "lista de canais"; focus_until "$1" $D; key $OK; else tap_text "$1"; fi
+  sleep 15; shot "login-$2-tocando"
+  check_log "aberto id="; check_playing "$3"
+  for i in 1 2 3; do key KEYCODE_BACK; sleep 2; if plog | grep -q "fechado"; then break; fi; done
 }
 
 # Abre o canal do destaque da Home e confere que o vídeo anda.
@@ -88,27 +106,29 @@ save_report 1-nao-reconhecido
 # 2) Provedor que recusa o jeito padrão mas entrega a lista pelo link (plano B).
 echo "== cenário 2: só a lista completa pelo link funciona" >> "$STEPS"
 login "sololink"
-wait_text "Pronto! 25 itens encontrados." 90; shot login-2-pronto
-open_report; shot login-2-relatorio
-check_contains "Recursos do provedor: ok"
-check_secret "sololink" "cenário 2"
+wait_text "TV ao vivo" 60; shot login-2-escolha
+flog | grep "medida" | sed 's/^/  anotação: /' >> "$STEPS"
 save_report 2-so-link
-if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else for i in 1 2 3 4 5 6; do adb shell input swipe 500 700 500 1500 300; done; tap_text "Ir para o Início"; fi
-sleep 5; shot login-2-home
-check_contains "Abertos"
-play_hero 2 "canal do provedor (plano B)"
+check_report 2-so-link "Recursos do provedor: ok"
+check_secret "sololink" "cenário 2"
+open_live_and_play "Canal Intermediário 1" 2 "canal do provedor (plano B)"
 
 # 3) Provedor no padrão completo: login, categorias e consulta por categoria.
 echo "== cenário 3: jeito padrão funciona" >> "$STEPS"
 login "padrao"
-wait_text "Pronto! 25 itens encontrados." 90; shot login-3-pronto
-open_report; shot login-3-relatorio
-check_contains "Recursos do provedor: pedir canais de uma categoria só: ok"
+wait_text "TV ao vivo" 60; shot login-3-escolha
+flog | grep "medida" | sed 's/^/  anotação: /' >> "$STEPS"
 save_report 3-padrao
-if [ "$NAME" = "tv" ]; then focus "início"; focus_until "Ir para o Início" $U; key $OK; else for i in 1 2 3 4 5 6; do adb shell input swipe 500 700 500 1500 300; done; tap_text "Ir para o Início"; fi
-sleep 5; shot login-3-home
-check_contains "TV · Abertos"
-play_hero 3 "canal do provedor (padrão)"
+check_report 3-padrao "Recursos do provedor: pedir canais de uma categoria só: ok"
+check_secret "padrao" "cenário 3"
+open_live_and_play "Canal Intermediário 1" 3 "canal do provedor (padrão)"
+# Outra categoria, aberta na hora (busca só ela no provedor).
+if [ "$NAME" != "tv" ]; then
+  tap_text "Esportes"; wait_text "Canal Intermediário 6" 30; shot login-3-esportes
+  tap_text "Voltar"; sleep 2
+  tap_text "Filmes"; wait_text "Filme Intermediário 1" 60; shot login-3-filmes
+fi
+grep "action=" intermediario.log 2> /dev/null | tail -20 | sed 's/^/  provedor recebeu: /' >> "$STEPS" || true
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" >> "$STEPS"; else falha "APP FECHOU"; fi
 adb logcat -d "*:E" | grep -iE "nuvora|AndroidRuntime|ANR in com.nuvora" > "$OUT/$NAME-login-erros.txt" || true

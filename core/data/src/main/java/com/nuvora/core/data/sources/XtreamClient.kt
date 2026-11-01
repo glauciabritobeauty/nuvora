@@ -56,11 +56,11 @@ internal sealed interface ProviderAccess {
     data object Api : ProviderAccess
 
     /** O provedor só entrega a lista completa num endereço (plano B). */
-    data class FullList(val url: String) : ProviderAccess
+    data class FullList(val url: String, val variant: String) : ProviderAccess
 }
 
 /** O que o provedor respondeu no login (só o que importa; usuário e senha ecoados são ignorados). */
-private class LoginInfo(val auth: Int?, val status: String?, val expDate: Long?, val formats: List<String>)
+internal class LoginInfo(val auth: Int?, val status: String?, val expDate: Long?, val formats: List<String>, val maxConnections: Int?)
 
 /**
  * Conversa com o provedor no padrão Provedor/Usuário/Senha: confere o acesso e busca canais, filmes e séries
@@ -77,7 +77,12 @@ internal class XtreamClient(
 ) {
     private val credentials = "username=${enc(login.user)}&password=${enc(login.password)}"
     private val base = "${login.server}/player_api.php?$credentials"
-    private var liveFormat = "m3u8"
+    /** Formato dos canais ao vivo que o provedor aceita (m3u8 ou ts), descoberto no login. */
+    var liveFormat = "m3u8"
+
+    /** Dados da conta do último login que deu certo (vencimento, telas). */
+    var account: LoginInfo? = null
+        private set
 
     /**
      * Confere usuário e senha e descobre como este provedor entrega o conteúdo:
@@ -95,8 +100,8 @@ internal class XtreamClient(
             replies += post
             loginFrom(post)?.let { return it }
         }
-        for (variant in listOf("&type=m3u_plus&output=hls", "&type=m3u_plus")) {
-            val url = "${login.server}/get.php?$credentials$variant"
+        for (variant in LIST_VARIANTS) {
+            val url = fullListUrl(variant)
             val reply = probe("Plano B: lista completa pelo link (get.php)", url, maxBytes = 4 * 1024)
             replies += reply
             if (reply.code in 200..299 && reply.isM3u()) {
@@ -108,7 +113,7 @@ internal class XtreamClient(
                         "Consultas separadas por categoria não estão disponíveis neste provedor.",
                     true,
                 )
-                return ProviderAccess.FullList(url)
+                return ProviderAccess.FullList(url, variant)
             }
             if (reply.code.isLimit()) fail(ImportFailure.Limited, ProblemKind.ServerResponse, "HTTP ${reply.code}", "O provedor limitou o acesso (código ${reply.code}).")
         }
@@ -154,6 +159,7 @@ internal class XtreamClient(
                 "Usuário e senha certos, mas o acesso está bloqueado (${info.status}).")
         }
         if (info.formats.isNotEmpty() && "m3u8" !in info.formats && "ts" in info.formats) liveFormat = "ts"
+        account = info
         report?.loginOk = true
         return ProviderAccess.Api
     }
@@ -246,6 +252,7 @@ internal class XtreamClient(
         var auth: Int? = null
         var status: String? = null
         var expDate: Long? = null
+        var maxConnections: Int? = null
         val formats = mutableListOf<String>()
         val json = JsonReader(java.io.StringReader(text))
         if (json.peek() != JsonToken.BEGIN_OBJECT) return@runCatching null
@@ -261,6 +268,7 @@ internal class XtreamClient(
                     "auth" -> auth = json.nextLooseString()?.let { it.toIntOrNull() ?: if (it == "true") 1 else if (it == "false") 0 else null }
                     "status" -> status = json.nextLooseString()
                     "exp_date" -> expDate = json.nextLooseString()?.toLongOrNull()
+                    "max_connections" -> maxConnections = json.nextLooseString()?.toIntOrNull()
                     "allowed_output_formats" -> if (json.peek() == JsonToken.BEGIN_ARRAY) {
                         json.beginArray()
                         while (json.hasNext()) json.nextLooseString()?.let(formats::add)
@@ -273,7 +281,7 @@ internal class XtreamClient(
             }
             json.endObject()
         }
-        LoginInfo(auth, status, expDate, formats)
+        LoginInfo(auth, status, expDate, formats, maxConnections)
     }.getOrNull()
 
     private fun HttpReply.isM3u() = text.trimStart('﻿', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", ignoreCase = true)
@@ -289,32 +297,11 @@ internal class XtreamClient(
     private fun fail(reason: ImportFailure, kind: ProblemKind, detail: String?, conclusion: String): Nothing =
         throw exception(reason, kind, detail, conclusion)
 
-    /** Busca canais, filmes e séries, entregando cada item em [emit]. Devolve quantos itens foram entregues. */
-    fun importAll(onStep: (String) -> Unit, emit: (M3uEntry) -> Unit): Int {
-        var count = 0
-        val countingEmit: (M3uEntry) -> Unit = { emit(it); count++ }
-        onStep("Buscando canais...")
-        val firstLiveCategory = readItems("live", "TV", countingEmit)
-        checkCategoryQuery(firstLiveCategory)
-        onStep("Buscando filmes...")
-        readItems("vod", "Filmes", countingEmit)
-        onStep("Buscando séries...")
-        readItems("series", "Séries", countingEmit)
-        return count
-    }
-
-    /**
-     * Confere (só para o relatório) se o provedor aceita pedir os canais de UMA categoria,
-     * o que permite carregar aos poucos. [first]: id da 1ª categoria e quantos canais havia no total.
-     */
-    private fun checkCategoryQuery(first: Pair<String, Int>?) {
-        val report = report ?: return
-        if (first == null) return
-        val (categoryId, total) = first
-        val url = "$base&action=get_live_streams&category_id=${enc(categoryId)}"
-        val started = android.os.SystemClock.elapsedRealtime()
-        val result = runCatching {
-            var count = 0
+    /** Categorias de uma parte (pedido pequeno: só nomes). Anotado no relatório. */
+    fun categories(kind: SectionKind): List<Pair<String, String>> {
+        val list = ArrayList<Pair<String, String>>()
+        val url = "$base&action=get_${kind.key}_categories"
+        recorded("${kind.label}: categorias", url, { "${list.size} categorias" }) {
             read(url) { json ->
                 if (json.peek() != JsonToken.BEGIN_ARRAY) {
                     json.skipValue()
@@ -322,26 +309,61 @@ internal class XtreamClient(
                 }
                 json.beginArray()
                 while (json.hasNext()) {
-                    json.skipValue()
-                    count++
+                    val fields = json.readFlatObject()
+                    val id = fields["category_id"] ?: continue
+                    list += id to (fields["category_name"]?.trim()?.ifBlank { null } ?: "Outros")
                 }
                 json.endArray()
             }
-            count
         }
-        val millis = android.os.SystemClock.elapsedRealtime() - started
-        val text = result.fold(
-            onSuccess = { count ->
-                if (count in 1 until total) {
-                    "aceita: a 1ª categoria trouxe só $count de $total canais, em $millis ms (dá para carregar por categoria)"
-                } else {
-                    "não filtra: devolveu $count de $total canais (precisa ler tudo de uma vez)"
-                }
-            },
-            onFailure = { "não aceita: ${it.javaClass.simpleName}" },
-        )
-        report.add("Recursos do provedor: pedir canais de uma categoria só", url, text, result.getOrNull()?.let { it in 1 until total } == true)
+        return list
     }
+
+    /**
+     * Itens de uma parte: só de uma categoria ([categoryId]) ou todos (null).
+     * Cada item vem com a categoria que o provedor diz que ele tem (para conferir se o filtro funcionou).
+     */
+    fun streams(kind: SectionKind, categoryId: String?, emit: (categoryId: String?, entry: M3uEntry) -> Unit) {
+        val action = when (kind) {
+            SectionKind.Live -> "get_live_streams"
+            SectionKind.Movies -> "get_vod_streams"
+            SectionKind.Series -> "get_series"
+        }
+        val url = "$base&action=$action" + (categoryId?.let { "&category_id=${enc(it)}" } ?: "")
+        read(url) { json ->
+            if (json.peek() != JsonToken.BEGIN_ARRAY) {
+                json.skipValue()
+                return@read
+            }
+            json.beginArray()
+            while (json.hasNext()) {
+                val fields = json.readFlatObject()
+                val name = fields["name"]?.ifBlank { null } ?: continue
+                val url = when (kind) {
+                    SectionKind.Live -> "${login.server}/live/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$liveFormat"
+                    SectionKind.Movies -> {
+                        val ext = fields["container_extension"]?.ifBlank { null } ?: "mp4"
+                        "${login.server}/movie/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$ext"
+                    }
+                    SectionKind.Series -> "$SERIES_PREFIX${fields["series_id"] ?: continue}"
+                }
+                emit(
+                    fields["category_id"],
+                    M3uEntry(
+                        title = name,
+                        url = url,
+                        logo = (fields["stream_icon"] ?: fields["cover"])?.takeIf { it.startsWith("http") },
+                        group = null,
+                        rating = fields["rating"]?.toDoubleOrNull()?.takeIf { it > 0 }?.let { String.format(java.util.Locale.US, "%.1f", it) },
+                    ),
+                )
+            }
+            json.endArray()
+        }
+    }
+
+    /** Endereço da lista completa (plano B), com o mesmo usuário e senha. */
+    fun fullListUrl(variant: String) = "${login.server}/get.php?$credentials$variant"
 
     fun episodes(seriesId: String): List<Episode> {
         val list = ArrayList<Episode>()
@@ -387,26 +409,8 @@ internal class XtreamClient(
         return list.sortedWith(compareBy({ it.season }, { it.number }))
     }
 
-    /** Lê categorias e itens de um tipo. Devolve o id da 1ª categoria e o total de itens (para o teste de recursos). */
-    private fun readItems(kind: String, label: String, emit: (M3uEntry) -> Unit): Pair<String, Int>? {
-        val categories = LinkedHashMap<String, String>()
-        var count = 0
-        val categoriesUrl = "$base&action=get_${kind}_categories"
-        recorded("$label: categorias", categoriesUrl, { "${categories.size} categorias" }) { readCategories(categoriesUrl, categories) }
-        val action = when (kind) {
-            "live" -> "get_live_streams"
-            "vod" -> "get_vod_streams"
-            else -> "get_series"
-        }
-        val itemsUrl = "$base&action=$action"
-        recorded("$label: itens", itemsUrl, { "$count itens" }) {
-            readStreams(itemsUrl, kind, label, categories) { emit(it); count++ }
-        }
-        return categories.keys.firstOrNull()?.let { it to count }
-    }
-
     /** Faz o pedido e anota no relatório o resultado (ou a falha, que conta como erro de carregamento da lista). */
-    private fun recorded(title: String, url: String, summary: () -> String, block: () -> Unit) {
+    internal fun recorded(title: String, url: String, summary: () -> String, block: () -> Unit) {
         val started = android.os.SystemClock.elapsedRealtime()
         try {
             block()
@@ -418,54 +422,6 @@ internal class XtreamClient(
         }
     }
 
-    private fun readCategories(url: String, categories: MutableMap<String, String>) {
-        read(url) { json ->
-            if (json.peek() != JsonToken.BEGIN_ARRAY) {
-                json.skipValue()
-                return@read
-            }
-            json.beginArray()
-            while (json.hasNext()) {
-                val fields = json.readFlatObject()
-                val id = fields["category_id"] ?: continue
-                categories[id] = fields["category_name"]?.ifBlank { null } ?: "Outros"
-            }
-            json.endArray()
-        }
-    }
-
-    private fun readStreams(url: String, kind: String, label: String, categories: Map<String, String>, emit: (M3uEntry) -> Unit) {
-        read(url) { json ->
-            if (json.peek() != JsonToken.BEGIN_ARRAY) {
-                json.skipValue()
-                return@read
-            }
-            json.beginArray()
-            while (json.hasNext()) {
-                val fields = json.readFlatObject()
-                val name = fields["name"]?.ifBlank { null } ?: continue
-                val url = when (kind) {
-                    "live" -> "${login.server}/live/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$liveFormat"
-                    "vod" -> {
-                        val ext = fields["container_extension"]?.ifBlank { null } ?: "mp4"
-                        "${login.server}/movie/${login.user}/${login.password}/${fields["stream_id"] ?: continue}.$ext"
-                    }
-                    else -> "$SERIES_PREFIX${fields["series_id"] ?: continue}"
-                }
-                val category = categories[fields["category_id"]] ?: "Outros"
-                emit(
-                    M3uEntry(
-                        title = name,
-                        url = url,
-                        logo = (fields["stream_icon"] ?: fields["cover"])?.takeIf { it.startsWith("http") },
-                        group = "$label · $category",
-                    ),
-                )
-            }
-            json.endArray()
-        }
-    }
-
     private fun read(url: String, block: (JsonReader) -> Unit) {
         fetch(url).use { input -> JsonReader(InputStreamReader(input, Charsets.UTF_8)).use(block) }
     }
@@ -473,6 +429,9 @@ internal class XtreamClient(
     companion object {
         /** Marca interna: o item é uma série (os episódios são buscados quando a pessoa abre). */
         const val SERIES_PREFIX = "xtream-series:"
+
+        /** Jeitos de pedir a lista completa (plano B), na ordem em que são tentados. */
+        val LIST_VARIANTS = listOf("&type=m3u_plus&output=hls", "&type=m3u_plus")
 
         private fun enc(text: String) = Uri.encode(text)
 

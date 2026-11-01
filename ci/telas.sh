@@ -108,8 +108,9 @@ if [ "$NAME" = "tv" ]; then
   fi
   link_form "http://10.0.2.2:8000/teste.m3u"
   wait_text "Pronto! 4 itens encontrados." 30; shot 20-lista-adicionada-tv
-  focus_until "Ir para o Início" $D; key $OK; sleep 3
-  check_text "Filmes de teste" sim; shot 21-home-com-lista-tv
+  focus "pronto"; focus_until "Ir para o Início" $D; key $OK; sleep 3
+  focus "35. tela de escolha"; focus_until "TV ao vivo" $U; key $OK; sleep 3
+  check_text "Filme HLS de teste" sim; shot 21-tv-ao-vivo-com-lista-tv
 else
   W=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f1)
   H=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | cut -dx -f2)
@@ -215,8 +216,9 @@ else
   }
   add_link "Lista%sde%steste" "http://10.0.2.2:8000/teste.m3u"
   wait_text "Pronto! 4 itens encontrados." 30; shot 30-lista-adicionada
-  tap_text "Ir para o Início"; sleep 3; check_text "Filmes de teste" sim; shot 31-home-com-lista
-  adb logcat -c; tap_text "Assistir"; sleep 15
+  tap_text "Ir para o Início"; sleep 3; shot 31-tela-de-escolha
+  tap_text "TV ao vivo"; sleep 3; check_text "Filme HLS de teste" sim; shot 31-tv-ao-vivo-com-lista
+  adb logcat -c; tap_text "Filme HLS de teste"; sleep 15
   check_log "aberto id=f1-0"; check_playing "item da lista M3U"; key KEYCODE_BACK; sleep 3
   # Lista gigante (20.000 itens): tempo de importação e memória.
   MEM_ANTES_LISTA=$(total_pss)
@@ -265,8 +267,7 @@ else
   check_text "Detalhe técnico: venceu em 13/09/2020" sim; shot 41-assinatura-vencida
   # Provedor certo (a separação do link colado tem testes automáticos próprios).
   add_provider "Meu%sprovedor" "http://10.0.2.2:8000" "teste" "1234"
-  wait_text "Pronto! 5 itens encontrados." 60; shot 42-provedor-ok
-  tap_text "Ir para o Início"; sleep 3
+  wait_text "TV ao vivo" 60; shot 42-provedor-ok; sleep 5
   tap_tab "Buscar" 2; tap_text "Campo de busca"; clear_field; adb shell input text "Canal%sHLS"; key KEYCODE_BACK; sleep 2
   adb logcat -c; tap_card "Canal HLS de teste"; sleep 15
   check_log "aberto id="; check_playing "canal ao vivo do provedor"; key KEYCODE_BACK; sleep 3

@@ -36,7 +36,10 @@ import com.nuvora.core.data.demo.DemoContent
 import com.nuvora.core.data.model.CardItem
 import com.nuvora.core.data.model.SubtitleMode
 import com.nuvora.core.player.NuvoraPlayerScreen
+import com.nuvora.core.data.sources.SectionKind
 import com.nuvora.feature.sources.AddSourceScreen
+import com.nuvora.feature.sources.BrowseScreen
+import com.nuvora.feature.sources.HubScreen
 import com.nuvora.feature.sources.EpisodesDialog
 import com.nuvora.feature.sources.SourcesSection
 import com.nuvora.core.data.model.HomeUiState
@@ -86,6 +89,11 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
     var options by remember { mutableStateOf<ItemOptions?>(null) }
     var addingSource by rememberSaveable { mutableStateOf(false) }
+    // Parte aberta a partir da tela de escolha (TV ao vivo, Filmes, Séries); null = a própria tela de escolha.
+    var browseKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val hub by viewModel.hub.collectAsStateWithLifecycle()
+    val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val changes by viewModel.changes.collectAsStateWithLifecycle()
     // Guarda a rolagem e o estado das telas enquanto o player está aberto, para voltar exatamente onde estava.
     val screens = rememberSaveableStateHolder()
     var confirmClear by remember { mutableStateOf(false) }
@@ -194,7 +202,28 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     onLongPress = if (open == HomeSection.Recent) null else { item -> showOptions(item, open) },
                 )
             } else {
-                when (tab) {
+                val browsing = browseKey?.let(SectionKind::of)
+                when {
+                    tab == Tab.Home && !state.demoOn && browsing != null -> BrowseScreen(
+                        kind = browsing,
+                        changes = changes,
+                        loadCategories = viewModel::categories,
+                        loadItems = viewModel::categoryItems,
+                        loadAll = viewModel::sectionItems,
+                        loadFavorites = viewModel::favoritesIn,
+                        search = viewModel::searchIn,
+                        onOpen = openItem,
+                        onBack = { browseKey = null },
+                    )
+                    tab == Tab.Home && !state.demoOn -> HubScreen(
+                        hub = hub,
+                        loading = loading,
+                        versionName = versionName,
+                        onOpen = { browseKey = it.key },
+                        onRefresh = viewModel::refreshAll,
+                        onLogout = { viewModel.logout() },
+                    )
+                    else -> when (tab) {
                     Tab.Home -> HomeScreen(
                         state = state.home,
                         favoriteIds = state.favoriteIds,
@@ -270,6 +299,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                         },
                     )
                 }
+                }
             }
         }
         BottomNavBar(
@@ -277,6 +307,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             selectedKey = tab.item.key,
             onSelect = { selected ->
                 section = null
+                browseKey = null
                 addingSource = false
                 tab = Tab.entries.first { it.item.key == selected.key }
             },

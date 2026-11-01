@@ -2,7 +2,10 @@ package com.nuvora.designsystem.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,9 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -132,6 +138,113 @@ fun LandscapeCard(
         )
         if (caption != null) {
             NuvoraText(text = caption, style = NuvoraTheme.typography.caption, color = colors.textSecondary, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * Capa grande de filme/série que ocupa a largura da coluna (grade de 3 no celular):
+ * nome escrito sobre a capa, com sombra embaixo, e selo da nota no canto quando o provedor manda.
+ */
+@Composable
+fun CoverCard(
+    title: String,
+    imageUrl: String?,
+    rating: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val colors = NuvoraTheme.colors
+    val dimens = NuvoraTheme.dimens
+    NuvoraClickable(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        shape = dimens.cardShape,
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(2f / 3f)
+            .semantics { contentDescription = title },
+        containerColor = colors.surfaceRaised,
+    ) {
+        CardImage(imageUrl)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))),
+        )
+        if (rating != null) {
+            Row(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .background(colors.background.copy(alpha = 0.78f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NuvoraText("★", NuvoraTheme.typography.caption, color = colors.accent)
+                NuvoraText(rating, NuvoraTheme.typography.caption, color = colors.textPrimary)
+            }
+        }
+        NuvoraText(
+            title,
+            NuvoraTheme.typography.label,
+            color = colors.textPrimary,
+            maxLines = 2,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** Linha de canal ao vivo: número, logo e nome (lista de TV ao vivo). */
+@Composable
+fun ChannelRow(
+    number: Int,
+    title: String,
+    logoUrl: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val colors = NuvoraTheme.colors
+    val isTv = NuvoraTheme.isTv
+    NuvoraClickable(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        shape = RoundedCornerShape(14.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = title },
+        containerColor = colors.surface,
+        focusedContainerColor = colors.surfaceRaised,
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = if (isTv) 10.dp else 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            NuvoraText(
+                number.toString(),
+                NuvoraTheme.typography.caption,
+                color = colors.textSecondary,
+                modifier = Modifier.width(if (isTv) 40.dp else 28.dp),
+            )
+            Box(
+                Modifier
+                    .size(if (isTv) 56.dp else 46.dp)
+                    .background(colors.surfaceRaised, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (logoUrl != null) {
+                    AsyncImage(model = logoUrl, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(4.dp))
+                } else {
+                    NuvoraIcon(NuvoraIcons.Play, tint = colors.accent, size = 20.dp)
+                }
+            }
+            NuvoraText(title, NuvoraTheme.typography.label, color = colors.textPrimary, maxLines = 1)
         }
     }
 }
