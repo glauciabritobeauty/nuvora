@@ -502,3 +502,23 @@ Medição a 8 Mega (emulador, provedor grande: 180 categorias, 44.000 itens), ve
 | Canal começar | 3,0 s (antes 2,2) | 2,3 s (antes 1,0) |
 Canal um pouco mais lento que na Fase A: a investigar na Fase E (player). O filme pela busca não foi medido nesta rodada (o roteiro não achou a aba Buscar no emulador).
 Testes: login celular 47 ok / TV 22 ok, 0 falhas; telas tablet 154 ok, TV 0 falhas, celular só as falhas conhecidas do menu de baixo (recuperadas pela posição); 0 erros registrados.
+
+## Fluidez (v0.9.5) — resposta a "tudo demora" no aparelho da Glaucia; aguardando o relatório do aparelho dela
+Versão de segurança: tag `seguranca-0.9.3-antes-fluidez` + `apk/seguranca/nuvora-0.9.3-escolha.apk`.
+Causas encontradas no código e corrigidas:
+- Banco sem WAL: toda leitura (abrir categoria, voltar, tela de escolha) esperava as gravações do segundo plano → WAL ligado; gravação em lotes de 1.000; rede e cifragem fora da trava.
+- Segundo plano usando a internet sem parar (disputa com categoria aberta, logos e vídeo; provedor de 1 tela) → agora pausa enquanto vídeo toca ou categoria está sendo aberta, respira 250 ms entre pedidos e roda em linha de baixa prioridade.
+- Voltar do vídeo remontava a lista lendo o banco → memória das telas de cada parte.
+- Abrir o app esperava a amostra da Home antiga → não espera mais. Login não busca mais a 1ª categoria.
+- "Todos os canais" limitado a 5.000 → sem limite prático.
+- Relatório de conexão guardado em Ajustes, com "Desempenho neste aparelho" (abrir o app, cada parte/categoria — do aparelho ou do provedor — e início de cada vídeo).
+Medição a 8 Mega (emulador, 180 categorias / 44.000 itens), cronômetro do app (anotação) e do teste (lê a tela, ≈1 s por leitura):
+| | Celular | TV |
+|---|---|---|
+| Senha + categorias (app) | 0,83 s | 0,40 s |
+| Tocar ENTRAR até ver a tela de escolha (teste, inclui ~1-3 s das leituras de tela) | 5,7 s | 3,1 s |
+| Abrir TV ao vivo até ver os canais, com o segundo plano ainda carregando | ≤ 1,6 s | ≤ 1,6 s |
+| Voltar do canal para a lista, com o segundo plano carregando | ≤ 1,8 s | ≤ 1,6 s |
+| Lista inteira no aparelho (segundo plano educado) | 96 s (antes 42) | 91 s (antes 38) |
+| Canal começar | 3,6 s | 1,4 s |
+Testes: login 47/22 ok sem falhas; telas tablet e TV sem falhas, celular só as conhecidas do menu de baixo; 0 erros. Filme pela busca segue sem medição (roteiro não acha a aba Buscar no emulador).
