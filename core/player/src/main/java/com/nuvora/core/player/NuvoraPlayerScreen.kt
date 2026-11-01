@@ -121,10 +121,13 @@ fun NuvoraPlayerScreen(
     subtitleMode: SubtitleMode,
     onSaveProgress: (positionMs: Long, durationMs: Long) -> Unit,
     onClose: () -> Unit,
+    /** Avisado quando o 1º quadro do vídeo aparece (tempo desde que o player abriu, em ms). */
+    onFirstFrame: (millis: Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val isTv = NuvoraTheme.isTv
     val saveProgress by rememberUpdatedState(onSaveProgress)
+    val firstFrame by rememberUpdatedState(onFirstFrame)
 
     val openedAt = remember(request.id) { SystemClock.elapsedRealtime() }
     val player = remember(request.id) { createPlayer(context, request, startPositionMs, subtitleMode) }
@@ -198,6 +201,7 @@ fun NuvoraPlayerScreen(
 
             override fun onRenderedFirstFrame() {
                 diag.log("medida primeiro quadro ${SystemClock.elapsedRealtime() - openedAt} ms")
+                firstFrame(SystemClock.elapsedRealtime() - openedAt)
             }
 
             override fun onCues(cueGroup: CueGroup) {

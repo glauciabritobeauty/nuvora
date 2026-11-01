@@ -179,15 +179,56 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     /** Último relatório de conexão (texto, já sem usuário e senha), para Ajustes > Fontes de conteúdo. */
     val lastReport: StateFlow<String?> = _lastReport.asStateFlow()
 
+    private var reportBase: String? = null
+    private val performance = ArrayDeque<String>()
+
     private fun saveReport(text: String) {
-        _lastReport.value = text
+        reportBase = text
         prefs.edit().putString("ultimo_relatorio", text).apply()
+        publishReport()
     }
 
     /** Acrescenta ao relatório o que só se descobre depois do login (ex.: se o provedor aceita pedir por categoria). */
     private fun appendReport(line: String) {
         if (debug) Log.i(TAG, "relatorio: $line")
-        saveReport((_lastReport.value ?: "") + "\n" + line)
+        saveReport((reportBase ?: "") + "\n" + line)
+    }
+
+    /**
+     * Cronômetro do aparelho: quanto cada tela levou para abrir (e se precisou buscar no provedor).
+     * Vai no fim do relatório de conexão (só tempos e nomes de categorias, nunca senha).
+     */
+    fun notePerformance(line: String) {
+        if (debug) Log.i(TAG, "desempenho: $line")
+        synchronized(performance) {
+            performance.addLast(java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale("pt", "BR")).format(java.util.Date()) + "  " + line)
+            while (performance.size > 25) performance.removeFirst()
+        }
+        publishReport()
+    }
+
+    private fun publishReport() {
+        val lines = synchronized(performance) { performance.toList() }
+        _lastReport.value = buildString {
+            reportBase?.let { append(it) }
+            if (lines.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append("Desempenho neste aparelho (últimas aberturas):\n")
+                append(lines.joinToString("\n"))
+            }
+        }.ifEmpty { null }
+    }
+
+    /** Vídeo tocando: o segundo plano espera (não disputa a internet com o vídeo). */
+    @Volatile
+    var videoPlaying = false
+
+    /** Pedidos da pessoa em andamento (abrir categoria): o segundo plano espera eles terminarem. */
+    private val foregroundRequests = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** O segundo plano só segue quando nada da pessoa está usando a internet. */
+    private suspend fun waitForQuiet() {
+        while (videoPlaying || foregroundRequests.get() > 0) kotlinx.coroutines.delay(500)
     }
 
     /** Linha de execução própria e de baixa prioridade: o carregamento nunca disputa com a tela. */
@@ -214,7 +255,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     suspend fun load() = io {
         refreshSources()
         _savedServer.value = prefs.getString("servidor_cifrado", null)?.let { runCatching { crypto.decrypt(it) }.getOrNull() }
-        _lastReport.value = prefs.getString("ultimo_relatorio", null)
+        reportBase = prefs.getString("ultimo_relatorio", null)
+        publishReport()
     }
 
     suspend fun addLink(name: String, url: String, onProgress: (ImportProgress) -> Unit = {}): ImportResult = io {
@@ -660,7 +702,16 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
     /** Itens de uma categoria. Se ainda não chegaram, busca agora (passando na frente do segundo plano). */
     suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> = withContext(Dispatchers.IO) {
         runCatching {
-            if (!isLoaded(ref.sourceId, ref.kind, ref.id)) providerClient(ref.sourceId)?.let { loadCategory(ref.sourceId, ref.kind, ref.id, it) }
+            if (!isLoaded(ref.sourceId, ref.kind, ref.id)) {
+                providerClient(ref.sourceId)?.let { client ->
+                    foregroundRequests.incrementAndGet()
+                    try {
+                        loadCategory(ref.sourceId, ref.kind, ref.id, client)
+                    } finally {
+                        foregroundRequests.decrementAndGet()
+                    }
+                }
+            }
             val group = database.readableDatabase.rawQuery(
                 "SELECT grupo FROM categorias WHERE fonte_id = ? AND tipo = ? AND cat_id = ?",
                 arrayOf(ref.sourceId.toString(), ref.kind.key, ref.id),
@@ -714,8 +765,11 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                 arrayOf(id.toString()),
             ).use { c -> if (c.moveToFirst()) SectionKind.of(c.getString(0)) to c.getString(1) else null } ?: return true
             try {
+                waitForQuiet()
                 val mark = SystemClock.elapsedRealtime()
                 val load = loadCategory(id, next.first, next.second, client)
+                // Um respiro entre um pedido e outro: a internet fica livre para o que a pessoa pedir.
+                kotlinx.coroutines.delay(250)
                 if (done == 0) {
                     // 1ª categoria desta lista: o relatório ganha a resposta "o provedor aceita pedir por categoria?".
                     appendReport(
@@ -760,6 +814,8 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
                             if (++count == 200 || count % 2_000 == 0) {
                                 commitBatch(db, id)
                                 _loading.value = LoadProgress(0, 0, count)
+                                // Vídeo tocando ou categoria sendo aberta: para de ler um pouco (a internet fica para eles).
+                                while (videoPlaying || foregroundRequests.get() > 0) Thread.sleep(300)
                                 db.beginTransaction()
                             }
                         }

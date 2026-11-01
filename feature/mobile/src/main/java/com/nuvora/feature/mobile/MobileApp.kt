@@ -118,6 +118,7 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
             subtitleMode = subtitleMode,
             onSaveProgress = { position, duration -> viewModel.saveProgress(request, position, duration) },
             onClose = viewModel::closePlayer,
+            onFirstFrame = { viewModel.noteFirstFrame(request, it) },
         )
         return
     }

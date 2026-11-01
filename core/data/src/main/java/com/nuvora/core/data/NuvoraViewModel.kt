@@ -30,10 +30,12 @@ import com.nuvora.core.data.sources.CategoryRef
 import com.nuvora.core.data.sources.HubData
 import com.nuvora.core.data.sources.LoadProgress
 import com.nuvora.core.data.sources.SectionKind
+import android.os.SystemClock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -132,6 +134,14 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch { library.load() }
+        // Vídeo tocando: o carregamento em segundo plano pausa (a internet fica toda para o vídeo).
+        viewModelScope.launch { _playing.collect { sourcesRepo.videoPlaying = it != null } }
+        // Cronômetro: quanto tempo do app aberto até a tela de escolha pronta.
+        val opened = SystemClock.elapsedRealtime()
+        viewModelScope.launch {
+            hub.first { it != null }
+            sourcesRepo.notePerformance("Abrir o app até a tela de escolha: ${SystemClock.elapsedRealtime() - opened} ms")
+        }
         viewModelScope.launch {
             sourcesRepo.load()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
@@ -178,14 +188,25 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     suspend fun categories(kind: SectionKind): List<CategoryRef> {
         val version = changes.value
         remembered<List<CategoryRef>>("c/${kind.key}", version)?.let { return it }
-        return sourcesRepo.categories(kind).also { browseMemory["c/${kind.key}"] = version to it }
+        val mark = SystemClock.elapsedRealtime()
+        return sourcesRepo.categories(kind).also {
+            browseMemory["c/${kind.key}"] = version to it
+            sourcesRepo.notePerformance("${kind.label}: ${it.size} categorias em ${SystemClock.elapsedRealtime() - mark} ms")
+        }
     }
 
     /** Itens de uma categoria (busca na hora se ainda não chegaram). */
     suspend fun categoryItems(ref: CategoryRef): Result<List<CardItem>> {
         val key = "i/${ref.kind.key}/${ref.sourceId}/${ref.id}"
         if (ref.loaded) remembered<List<CardItem>>(key, 0L)?.let { return Result.success(it) }
-        return sourcesRepo.categoryItems(ref).onSuccess { if (it.isNotEmpty()) browseMemory[key] = 0L to it }
+        val mark = SystemClock.elapsedRealtime()
+        return sourcesRepo.categoryItems(ref)
+            .onSuccess { if (it.isNotEmpty()) browseMemory[key] = 0L to it }
+            .also { result ->
+                val how = if (ref.loaded) "já estava no aparelho" else "buscou no provedor"
+                val outcome = result.fold({ "${it.size} itens" }, { "falhou (${it.javaClass.simpleName})" })
+                sourcesRepo.notePerformance("${ref.kind.label} › ${ref.name}: ${SystemClock.elapsedRealtime() - mark} ms, $outcome, $how")
+            }
     }
 
     /** Todos os itens de uma parte que já chegaram. */
@@ -193,7 +214,11 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         val key = "i/${kind.key}/\u0000todos"
         val version = changes.value
         remembered<List<CardItem>>(key, version)?.let { return it }
-        return sourcesRepo.sectionItems(kind).also { browseMemory[key] = version to it }
+        val mark = SystemClock.elapsedRealtime()
+        return sourcesRepo.sectionItems(kind).also {
+            browseMemory[key] = version to it
+            sourcesRepo.notePerformance("${kind.label} › Todos: ${it.size} itens em ${SystemClock.elapsedRealtime() - mark} ms")
+        }
     }
 
     /** Último relatório de conexão (sem senha), para Ajustes. */
@@ -329,6 +354,11 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun closeEpisodes() {
         _episodes.value = null
+    }
+
+    /** O player avisa quando o vídeo apareceu (vai para o cronômetro do relatório). */
+    fun noteFirstFrame(request: PlaybackRequest, millis: Long) {
+        sourcesRepo.notePerformance("Vídeo \"${request.title.take(40)}\" começou em $millis ms")
     }
 
     fun closePlayer() {
