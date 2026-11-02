@@ -524,7 +524,7 @@ Medição a 8 Mega (emulador, 180 categorias / 44.000 itens), cronômetro do app
 Testes: login 47/22 ok sem falhas; telas tablet e TV sem falhas, celular só as conhecidas do menu de baixo; 0 erros. Filme pela busca segue sem medição (roteiro não acha a aba Buscar no emulador).
 
 ### Primeiro relatório do aparelho real (01/11/2026, 0.9.5, Android 16, celular) — "melhorou bastante"
-- Provedor real (nactip.com) funciona no jeito padrão: login 368 ms (https redirecionado para http), categorias 52/41/30 em 0,2–0,3 s cada; aceita pedir por categoria (42 itens em 518 ms).
+- Provedor real ((provedor A)) funciona no jeito padrão: login 368 ms (https redirecionado para http), categorias 52/41/30 em 0,2–0,3 s cada; aceita pedir por categoria (42 itens em 518 ms).
 - Leituras no aparelho: 1–50 ms (abrir parte, categoria já baixada, "Todos").
 - Conta de teste (is_trial=1) vence em 01/11/2026.
 - Ajuste para a próxima rodada: o cronômetro anota "N categorias em X ms" a cada lote que chega (polui o relatório e empurra para fora as linhas de abrir o app e de vídeo) → anotar só a 1ª abertura de cada parte.
@@ -554,7 +554,7 @@ Versão de segurança: tag `seguranca-0.9.6-antes-link` + `apk/seguranca/nuvora-
 - Link de provedor (get.php com usuário e senha dentro): entra pelo caminho rápido do Provedor/Usuário/Senha (categorias primeiro).
 - Outros links M3U: confere só o começo (erros como 404/456 continuam aparecendo na hora), vai direto para a tela de escolha e lê a lista aos poucos por trás (lotes; recomeça se a conexão cair). Atualizar também é por trás. Segundo plano atende uma lista por vez, incluindo as adicionadas no meio do caminho.
 - Servidor errado ou sem porta (ex.: DNS de STB que a Glaucia tentou): mensagem "confira o servidor (DNS) e a porta" em vez de "não aceitou o pedido".
-- Relatório real (plus.lat, link M3U colado no servidor na 0.9.6): login 0,35 s, categorias 0,3–0,5 s; canal 2,4–2,8 s; filme 4,5–6,2 s (reabrindo 8 s); episódio 5,7 s (reabrindo 8,7 s). Vídeos deste provedor saem de outro endereço (server_info muubsaaa.online). Próximo: cronômetro detalhado do vídeo + "desviar uma vez só".
+- Relatório real (provedor B, link M3U colado no servidor na 0.9.6): login 0,35 s, categorias 0,3–0,5 s; canal 2,4–2,8 s; filme 4,5–6,2 s (reabrindo 8 s); episódio 5,7 s (reabrindo 8,7 s). Vídeos deste provedor saem de outro endereço (server_info (servidor de vídeo do provedor B)). Próximo: cronômetro detalhado do vídeo + "desviar uma vez só".
 Testes: login 47/22 ok; telas tablet 162 ok sem falhas, TV sem falhas, celular só as conhecidas do menu de baixo; link de provedor e listas difíceis ok; 0 erros. DNS de "STB / Smart UP" não é compatível (outro sistema, por MAC).
 
 ## Fase E (parte 2): vídeo (v0.9.8) — testada no emulador, aguardando cronômetro do aparelho
@@ -567,13 +567,18 @@ Testes: login 47/22 ok; telas sem falhas novas; 0 erros.
 
 ## Tela de detalhes (v0.9.9) — testada no emulador, aguardando aparelho
 Versão de segurança: tag `seguranca-0.9.8-antes-detalhes` + `apk/seguranca/nuvora-0.9.8-video.apk`.
-- Teste da Glaucia: mesmo filme do plus.lat levou 13 s no CasaTV (NUVORA 9,6 s) → a demora é do servidor do provedor. O CasaTV mostra uma tela de detalhes antes do filme (ideia aprovada em prévia).
+- Teste da Glaucia: mesmo filme do provedor B levou 13 s no CasaTV (NUVORA 9,6 s) → a demora é do servidor do provedor. O CasaTV mostra uma tela de detalhes antes do filme (ideia aprovada em prévia).
 - Filmes/séries abertos pelas categorias passam pela tela de detalhes: capa, ano, duração, nota, gênero, sinopse, direção, elenco (get_vod_info/get_series_info; só o que o provedor mandar), Assistir e Favoritar; série com temporadas e episódios na tela. Canais abrem direto.
 - Enquanto os detalhes estão abertos, o desvio do provedor é resolvido e o player é preparado sem tocar (PlayerWarmup); Assistir usa o player já pronto; ao voltar do vídeo prepara de novo; sair dos detalhes libera.
 - Cronômetro: filme com desvio não aparece mais como "canal".
 Medição a 8 Mega (emulador): filme pela tela de detalhes após 3 s "lendo": 0,93 s celular / 0,49 s TV (antes 1,7–3,3 s / 0,9–1,0 s). Testes: login 49/22 ok, telas sem falhas novas, 0 erros; print da tela de detalhes conferido.
 
 ### Cronômetro real da 0.9.9 (01/11/2026 21:00, celular Android 16)
-- plus.lat (servidor de vídeo lento): filmes pela tela de detalhes 4,5 s e 2,4 s (antes 4,3–9,6 s; CasaTV 13 s); canal 1,9 s; nenhum vídeo travou.
-- nanoignite (o provedor que falhava no começo do projeto) agora entra e toca: canal 1,1 s; filmes 1,1 s e 1,0 s; episódio 1,4 s; categoria nova do provedor 0,4–1,0 s.
+- provedor B (servidor de vídeo lento): filmes pela tela de detalhes 4,5 s e 2,4 s (antes 4,3–9,6 s; CasaTV 13 s); canal 1,9 s; nenhum vídeo travou.
+- provedor C (o provedor que falhava no começo do projeto) agora entra e toca: canal 1,1 s; filmes 1,1 s e 1,0 s; episódio 1,4 s; categoria nova do provedor 0,4–1,0 s.
 - Abrir o app até a tela de escolha: 0,33 s.
+
+### Revisão de segurança (Etapa 9, 01/11/2026)
+- Nenhum usuário ou senha da Glaucia está nos arquivos do projeto nem no histórico do GitHub (conferido por busca). Pastas `captures/` e `apk/` ficam fora do GitHub.
+- Os endereços dos provedores reais apareciam neste arquivo; foram trocados por "provedor A/B/C" daqui em diante (versões antigas do arquivo ainda os têm no histórico: o projeto volta a ser privado na Etapa 10).
+- Versão final (release): anotações de teste desligadas (`nuvora_diagnostico=false`); o relatório de conexão nunca guarda usuário, senha ou tokens.
