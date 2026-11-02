@@ -572,3 +572,8 @@ Versão de segurança: tag `seguranca-0.9.8-antes-detalhes` + `apk/seguranca/nuv
 - Enquanto os detalhes estão abertos, o desvio do provedor é resolvido e o player é preparado sem tocar (PlayerWarmup); Assistir usa o player já pronto; ao voltar do vídeo prepara de novo; sair dos detalhes libera.
 - Cronômetro: filme com desvio não aparece mais como "canal".
 Medição a 8 Mega (emulador): filme pela tela de detalhes após 3 s "lendo": 0,93 s celular / 0,49 s TV (antes 1,7–3,3 s / 0,9–1,0 s). Testes: login 49/22 ok, telas sem falhas novas, 0 erros; print da tela de detalhes conferido.
+
+### Cronômetro real da 0.9.9 (01/11/2026 21:00, celular Android 16)
+- plus.lat (servidor de vídeo lento): filmes pela tela de detalhes 4,5 s e 2,4 s (antes 4,3–9,6 s; CasaTV 13 s); canal 1,9 s; nenhum vídeo travou.
+- nanoignite (o provedor que falhava no começo do projeto) agora entra e toca: canal 1,1 s; filmes 1,1 s e 1,0 s; episódio 1,4 s; categoria nova do provedor 0,4–1,0 s.
+- Abrir o app até a tela de escolha: 0,33 s.
