@@ -129,6 +129,8 @@ else
 
   adb shell uiautomator dump --compressed /sdcard/ui.xml > /dev/null 2>&1
   adb shell cat /sdcard/ui.xml > "$OUT/$NAME-leitura-inicio.xml"
+  # Diagnóstico do menu de baixo (leitor de tela): tamanho da janela do app e espaços das barras do sistema.
+  { adb shell wm size; adb shell wm density; adb shell dumpsys window windows | grep -A60 "com.nuvora.app" | grep -iE "frame|insets|surface size|mHasSurface|containing" | head -30; adb logcat -d -s NuvoraTela:I; } > "$OUT/$NAME-janela.txt" 2>&1
   tap_text "Ver demonstração"; shot 02-home-demonstracao
   tap_text "Adicionar aos favoritos"; shot 03-favoritado
   swipe_up; tap_text "Séries"; shot 04-categoria-series
@@ -292,6 +294,11 @@ else
   tap_card "Série de teste"; wait_text "T1 E2 · Episódio 2" 30; shot 43-episodios
   adb logcat -c; tap_text "T1 E2 · Episódio 2"; sleep 12
   check_log "-e402"; check_log "fim"; key KEYCODE_BACK; sleep 3
+  # Série pela tela de detalhes: o episódio a assistir já vem preparado ("Assistir T1 E1").
+  tap_tab "Início" 1; sleep 3; tap_text "Séries"; sleep 4
+  tap_card "Série de teste"; wait_text "Assistir T1 E1" 30; shot 44-serie-detalhes
+  adb logcat -c; tap_text "Assistir T1 E1"; sleep 12
+  check_log "-e401"; key KEYCODE_BACK; sleep 3
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi

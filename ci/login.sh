@@ -133,6 +133,14 @@ if [ "$NAME" != "tv" ]; then
   check_text "Assistir" sim
   key KEYCODE_BACK; sleep 2
 fi
+# Conta que venceu depois do login: ao abrir o app, aviso claro na tela de escolha (com Sair da conta).
+echo "== cenário 4: conta vencida ao abrir o app" >> "$STEPS"
+touch expirar
+adb shell am force-stop "$PKG"; sleep 2; adb shell am start -n "$PKG/.MainActivity" > /dev/null; sleep 8
+check_contains "venceu"
+check_contains "Sair da conta"
+shot login-4-conta-vencida
+rm -f expirar
 grep "action=" intermediario.log 2> /dev/null | tail -20 | sed 's/^/  provedor recebeu: /' >> "$STEPS" || true
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" >> "$STEPS"; else falha "APP FECHOU"; fi

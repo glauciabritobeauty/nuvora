@@ -790,6 +790,41 @@ class SourcesRepository(context: Context, private val crypto: CryptoBox) {
         }
     }
 
+    /**
+     * Confere a conta de cada provedor (ao abrir o app). Devolve um aviso em linguagem de gente se a conta
+     * venceu, foi bloqueada ou o usuário não é mais aceito; se renovou, atualiza o vencimento guardado.
+     * Sem internet ou provedor fora do ar: não acusa nada (a pessoa ainda vê o que está no aparelho).
+     */
+    suspend fun checkAccounts(): String? = io {
+        val sources = database.readableDatabase.rawQuery(
+            "SELECT id, nome, conta FROM fontes WHERE tipo = ? ORDER BY id",
+            arrayOf(SourceKind.Provider.key),
+        ).use { c -> buildList { while (c.moveToNext()) add(Triple(c.getLong(0), c.getString(1), c.getString(2))) } }
+        val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR"))
+        for ((id, name, accountText) in sources) {
+            val info = providerClient(id)?.accountStatus() ?: continue
+            val now = System.currentTimeMillis() / 1000
+            when {
+                info.auth != null && info.auth != 1 ->
+                    return@io "O provedor ($name) não aceita mais este usuário e senha. Fale com o seu fornecedor ou entre com outro acesso."
+                info.status.equals("expired", ignoreCase = true) || (info.expDate != null && info.expDate in 1 until now) ->
+                    return@io "A sua assinatura ($name) venceu" + (info.expDate?.let { " em ${dateFormat.format(java.util.Date(it * 1000))}" } ?: "") +
+                        ". Fale com o seu fornecedor para renovar."
+                info.status.equals("banned", ignoreCase = true) || info.status.equals("disabled", ignoreCase = true) ->
+                    return@io "O acesso ($name) está bloqueado pelo provedor. Fale com o seu fornecedor."
+                else -> {
+                    // Conta ativa: guarda o vencimento novo (se renovou) para o topo da tela de escolha.
+                    val account = runCatching { JSONObject(accountText ?: "{}") }.getOrDefault(JSONObject())
+                    info.expDate?.let { account.put("exp", it) }
+                    info.maxConnections?.let { account.put("max", it) }
+                    database.writableDatabase.execSQL("UPDATE fontes SET conta = ? WHERE id = ?", arrayOf<Any>(account.toString(), id))
+                }
+            }
+        }
+        _changes.value++
+        null
+    }
+
     /** Categorias de uma parte (TV ao vivo, Filmes ou Séries), de todas as listas. */
     suspend fun categories(kind: SectionKind): List<CategoryRef> = io {
         database.readableDatabase.rawQuery(

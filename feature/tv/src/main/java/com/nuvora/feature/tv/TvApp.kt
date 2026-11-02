@@ -89,6 +89,7 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val changes by viewModel.changes.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
     val details by viewModel.details.collectAsStateWithLifecycle()
+    val accountAlert by viewModel.accountAlert.collectAsStateWithLifecycle()
     // Filme aberto nos detalhes: o vídeo já vai sendo preparado por trás (começa mais rápido no Assistir).
     val detailsRequest = details?.request
     // Também prepara de novo ao voltar do vídeo para os detalhes (para assistir de novo sem esperar).
@@ -230,6 +231,8 @@ fun TvApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                     onOpen = { browseKey = it.key },
                     onRefresh = viewModel::refreshAll,
                     onLogout = { viewModel.logout() },
+                    accountAlert = accountAlert,
+                    onRecheck = viewModel::checkAccount,
                     shortcuts = {
                         NuvoraButton(text = "Buscar", icon = NuvoraIcons.Search, style = NuvoraButtonStyle.Secondary, onClick = { tab = TvTab.Search })
                         NuvoraButton(text = "Favoritos", icon = NuvoraIcons.Heart, style = NuvoraButtonStyle.Secondary, onClick = { tab = TvTab.Favorites })

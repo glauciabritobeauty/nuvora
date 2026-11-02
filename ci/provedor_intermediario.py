@@ -111,6 +111,9 @@ class Intermediario(http.server.BaseHTTPRequestHandler):
         if usuario != "padrao" or senha != SENHA:
             return self.bad(400)
         acao = q.get("action")
+        # Teste de conta vencida: com o arquivo "expirar" na pasta, a conta aparece vencida.
+        if acao is None and os.path.exists("expirar"):
+            return self.json({"user_info": {"auth": 1, "status": "Expired", "exp_date": "1700000000"}, "server_info": {}})
         if acao is None:
             return self.json({
                 "user_info": {"username": usuario, "password": senha, "auth": 1, "status": "Active",

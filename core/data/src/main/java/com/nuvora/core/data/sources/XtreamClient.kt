@@ -324,6 +324,13 @@ internal class XtreamClient(
     private fun fail(reason: ImportFailure, kind: ProblemKind, detail: String?, conclusion: String): Nothing =
         throw exception(reason, kind, detail, conclusion)
 
+    /** Só confere a conta (pedido pequeno), sem plano B nem relatório. null = sem resposta (ex.: sem internet). */
+    fun accountStatus(): LoginInfo? = runCatching {
+        val reply = httpProbe(base, timeoutMs = 10_000)
+        if (reply.code !in 200..299) return@runCatching null
+        parseLogin(reply.text)
+    }.getOrNull()
+
     /** Categorias de uma parte (pedido pequeno: só nomes). Anotado no relatório. */
     fun categories(kind: SectionKind): List<Pair<String, String>> {
         val list = ArrayList<Pair<String, String>>()

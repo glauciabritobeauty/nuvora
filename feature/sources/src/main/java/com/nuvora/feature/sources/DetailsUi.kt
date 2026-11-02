@@ -124,7 +124,8 @@ fun DetailsScreen(
             if (state.loading) {
                 NuvoraText("Buscando as informações no provedor...", NuvoraTheme.typography.caption, color = colors.textSecondary)
             }
-            if (state.kind == SectionKind.Series) Episodes(state, onPlayEpisode, playFocus)
+            // Na TV o foco começa no "Assistir T E" quando houver; senão, no 1º episódio.
+            if (state.kind == SectionKind.Series) Episodes(state, onPlayEpisode, if (state.preparedEpisode == null) playFocus else null)
         }
     }
 }
@@ -133,12 +134,22 @@ fun DetailsScreen(
 private fun Actions(state: DetailsState, isFavorite: Boolean, onPlay: () -> Unit, onToggleFavorite: () -> Unit, playFocus: FocusRequester) {
     val colors = NuvoraTheme.colors
     if (state.kind == SectionKind.Series) {
-        NuvoraButton(
-            text = if (isFavorite) "Nos favoritos" else "Favoritar",
-            icon = if (isFavorite) NuvoraIcons.HeartFilled else NuvoraIcons.Heart,
-            style = NuvoraButtonStyle.Secondary,
-            onClick = onToggleFavorite,
-        )
+        val episode = state.preparedEpisode
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // O episódio a assistir (parado no meio, o seguinte, ou o 1º) já está sendo preparado.
+            if (episode != null) {
+                NuvoraButton(text = "Assistir T${episode.season} E${episode.number}", icon = NuvoraIcons.Play, onClick = onPlay, modifier = Modifier.focusRequester(playFocus))
+            }
+            NuvoraButton(
+                text = if (isFavorite) "Nos favoritos" else "Favoritar",
+                icon = if (isFavorite) NuvoraIcons.HeartFilled else NuvoraIcons.Heart,
+                style = NuvoraButtonStyle.Secondary,
+                onClick = onToggleFavorite,
+            )
+        }
+        if (episode != null && state.request != null) {
+            NuvoraText("⚡ Preparando T${episode.season} E${episode.number} enquanto você escolhe", NuvoraTheme.typography.caption, color = colors.accent)
+        }
         return
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -164,7 +175,7 @@ private fun Credits(state: DetailsState) {
 }
 
 @Composable
-private fun Episodes(state: DetailsState, onPlayEpisode: (Episode) -> Unit, firstFocus: FocusRequester) {
+private fun Episodes(state: DetailsState, onPlayEpisode: (Episode) -> Unit, firstFocus: FocusRequester?) {
     val colors = NuvoraTheme.colors
     if (state.episodes.isEmpty()) {
         if (!state.loading) NuvoraText("O provedor não mandou os episódios desta série.", NuvoraTheme.typography.body, color = colors.textSecondary)
@@ -186,7 +197,7 @@ private fun Episodes(state: DetailsState, onPlayEpisode: (Episode) -> Unit, firs
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                    .then(if (index == 0 && firstFocus != null) Modifier.focusRequester(firstFocus) else Modifier),
                 containerColor = colors.surface,
                 focusedContainerColor = colors.surfaceRaised,
             ) {

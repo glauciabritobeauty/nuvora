@@ -60,6 +60,8 @@ data class DetailsState(
     val info: ItemInfo? = null,
     val episodes: List<Episode> = emptyList(),
     val request: PlaybackRequest? = null,
+    /** Série: o episódio que já está sendo preparado (o que a pessoa parou no meio, o seguinte, ou o 1º). */
+    val preparedEpisode: Episode? = null,
 )
 
 /** Série aberta, com a lista de episódios para escolher. */
@@ -112,6 +114,16 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** Andamento do carregamento em segundo plano (null = nada carregando). */
     val loading: StateFlow<LoadProgress?> = sourcesRepo.loading
 
+    private val _accountAlert = MutableStateFlow<String?>(null)
+
+    /** Aviso da conta (vencida, bloqueada, usuário não aceito), conferido ao abrir o app. null = tudo certo. */
+    val accountAlert: StateFlow<String?> = _accountAlert.asStateFlow()
+
+    /** Confere a conta do provedor (ao abrir o app e no "Tentar de novo"). Sem internet, não acusa nada. */
+    fun checkAccount() {
+        viewModelScope.launch { _accountAlert.value = sourcesRepo.checkAccounts() }
+    }
+
     private val _hub = MutableStateFlow<HubData?>(null)
 
     /** Tela de escolha: conta, TV ao vivo / Filmes / Séries e contagens (null = ainda lendo). */
@@ -146,8 +158,14 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
         _details.value = DetailsState(item.id, kind, item.title, item.imageUrl, item.rating)
         viewModelScope.launch {
             val (info, episodes) = sourcesRepo.itemInfo(item.id)
-            val request = if (kind == SectionKind.Movies) sourcesRepo.playback(item.id)?.let { withDirectUrl(it) } else null
-            _details.value = _details.value?.takeIf { it.itemId == item.id }?.copy(loading = false, info = info, episodes = episodes, request = request)
+            val episode = if (kind == SectionKind.Series) episodeToPrepare(item.id, episodes) else null
+            val request = when {
+                kind == SectionKind.Movies -> sourcesRepo.playback(item.id)?.let { withDirectUrl(it) }
+                episode != null -> withDirectUrl(episodeRequest(item.id, item.title, episode))
+                else -> null
+            }
+            _details.value = _details.value?.takeIf { it.itemId == item.id }
+                ?.copy(loading = false, info = info, episodes = episodes, request = request, preparedEpisode = episode)
         }
     }
 
@@ -165,8 +183,34 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** Episódio escolhido na tela de detalhes da série. */
     fun playDetailsEpisode(episode: Episode) {
         val state = _details.value ?: return
+        // O episódio que já estava sendo preparado começa com o que foi carregado.
+        if (episode.id == state.preparedEpisode?.id && state.request != null) {
+            _playing.value = state.request
+            return
+        }
         playEpisode(SeriesEpisodes(state.itemId, state.title, state.episodes), episode)
     }
+
+    /** Qual episódio deixar pronto: o que a pessoa parou no meio; senão o seguinte ao último visto; senão o 1º. */
+    private fun episodeToPrepare(itemId: String, episodes: List<Episode>): Episode? {
+        if (episodes.isEmpty()) return null
+        val last = library.history.value.filter { it.id.startsWith("$itemId-e") }.maxByOrNull { it.updatedAt } ?: return episodes.first()
+        val index = episodes.indexOfFirst { "$itemId-e${it.id}" == last.id }
+        return when {
+            index < 0 -> episodes.first()
+            WatchProgress.isUnfinished(last) -> episodes[index]
+            else -> episodes.getOrNull(index + 1) ?: episodes[index]
+        }
+    }
+
+    private fun episodeRequest(itemId: String, title: String, episode: Episode) = PlaybackRequest(
+        id = "$itemId-e${episode.id}",
+        title = "$title · ${episode.label}",
+        subtitle = null,
+        url = episode.url,
+        mimeType = null,
+        imageUrl = null,
+    )
 
     private val _playing = MutableStateFlow<PlaybackRequest?>(null)
 
@@ -196,6 +240,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
             sourcesRepo.load()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
             loadInBackground()
+            checkAccount()
             // Sempre que as listas mudam, refaz a amostra da Home (fora da tela, sem travar a rolagem).
             sourcesRepo.sources.collectLatest { list ->
                 if (list.isEmpty()) {
@@ -294,6 +339,7 @@ class NuvoraViewModel(application: Application) : AndroidViewModel(application) 
     /** "Sair da conta": tira todas as listas do aparelho (o servidor salvo continua, para entrar de novo fácil). */
     fun logout(onDone: () -> Unit = {}) {
         browseMemory.clear()
+        _accountAlert.value = null
         viewModelScope.launch {
             background?.cancelAndJoin()
             background = null

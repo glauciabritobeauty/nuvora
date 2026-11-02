@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.tappableElement
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -98,6 +101,17 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
     val changes by viewModel.changes.collectAsStateWithLifecycle()
     val lastReport by viewModel.lastReport.collectAsStateWithLifecycle()
     val details by viewModel.details.collectAsStateWithLifecycle()
+    val accountAlert by viewModel.accountAlert.collectAsStateWithLifecycle()
+    // Só na versão de teste: anota os espaços das barras do sistema (investigação do menu de baixo no leitor de tela).
+    if (com.nuvora.core.data.diagnosticsEnabled(context)) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val navBottom = WindowInsets.navigationBars.getBottom(density)
+        val systemBottom = WindowInsets.systemBars.getBottom(density)
+        val tappableBottom = WindowInsets.tappableElement.getBottom(density)
+        LaunchedEffect(navBottom, systemBottom, tappableBottom) {
+            android.util.Log.i("NuvoraTela", "baixo: navegacao=$navBottom sistema=$systemBottom toque=$tappableBottom (px)")
+        }
+    }
     // Filme aberto nos detalhes: o vídeo já vai sendo preparado por trás (começa mais rápido no Assistir).
     val detailsRequest = details?.request
     // Também prepara de novo ao voltar do vídeo para os detalhes (para assistir de novo sem esperar).
@@ -250,6 +264,8 @@ fun MobileApp(versionName: String, viewModel: NuvoraViewModel = viewModel()) {
                         onOpen = { browseKey = it.key },
                         onRefresh = viewModel::refreshAll,
                         onLogout = { viewModel.logout() },
+                        accountAlert = accountAlert,
+                        onRecheck = viewModel::checkAccount,
                     )
                     else -> when (tab) {
                     Tab.Home -> HomeScreen(

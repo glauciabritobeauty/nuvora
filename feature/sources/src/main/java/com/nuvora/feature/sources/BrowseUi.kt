@@ -3,6 +3,7 @@ package com.nuvora.feature.sources
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,6 +85,9 @@ fun HubScreen(
     onLogout: () -> Unit,
     /** Atalhos extras (na TV: Buscar e Favoritos). */
     shortcuts: @Composable () -> Unit = {},
+    /** Aviso da conta (vencida, bloqueada...), com "Tentar de novo". */
+    accountAlert: String? = null,
+    onRecheck: () -> Unit = {},
 ) {
     val colors = NuvoraTheme.colors
     val isTv = NuvoraTheme.isTv
@@ -103,6 +107,22 @@ fun HubScreen(
         verticalArrangement = Arrangement.spacedBy(if (isTv) 20.dp else 14.dp),
     ) {
         AccountHeader(hub)
+        accountAlert?.let { message ->
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(colors.surface, RoundedCornerShape(14.dp))
+                    .border(1.dp, colors.error, RoundedCornerShape(14.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                NuvoraText(message, NuvoraTheme.typography.body, color = colors.error)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    NuvoraButton(text = "Tentar de novo", icon = NuvoraIcons.Refresh, style = NuvoraButtonStyle.Secondary, onClick = onRecheck)
+                    NuvoraButton(text = "Sair da conta", style = NuvoraButtonStyle.Secondary, onClick = { confirmLogout = true })
+                }
+            }
+        }
         LoadingNotice(hub, loading, onRetry = onRefresh)
         val tiles = @Composable { kind: SectionKind, modifier: Modifier ->
             val summary = hub.sections.firstOrNull { it.kind == kind }
@@ -168,7 +188,10 @@ private fun AccountHeader(hub: HubData) {
             NuvoraText(if (account?.user != null) "Olá!" else account?.sourceName ?: "NUVORA", NuvoraTheme.typography.title, maxLines = 1)
             val details = listOfNotNull(
                 account?.user,
-                account?.expiresAt?.let { "vence ${SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date(it * 1000))}" },
+                account?.expiresAt?.let {
+                    val date = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date(it * 1000))
+                    if (it * 1000 < System.currentTimeMillis()) "venceu $date" else "vence $date"
+                },
                 account?.screens?.let { if (it == 1) "1 tela" else "$it telas" },
             )
             if (details.isNotEmpty()) {
