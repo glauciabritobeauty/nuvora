@@ -582,3 +582,11 @@ Medição a 8 Mega (emulador): filme pela tela de detalhes após 3 s "lendo": 0,
 - Nenhum usuário ou senha da Glaucia está nos arquivos do projeto nem no histórico do GitHub (conferido por busca). Pastas `captures/` e `apk/` ficam fora do GitHub.
 - Os endereços dos provedores reais apareciam neste arquivo; foram trocados por "provedor A/B/C" daqui em diante (versões antigas do arquivo ainda os têm no histórico: o projeto volta a ser privado na Etapa 10).
 - Versão final (release): anotações de teste desligadas (`nuvora_diagnostico=false`); o relatório de conexão nunca guarda usuário, senha ou tokens.
+
+## ETAPA 9 — Testes e correções (v0.9.10) — testada no emulador
+Versão de segurança: tag `seguranca-0.9.9-antes-etapa9` + `apk/seguranca/nuvora-0.9.9-detalhes.apk`.
+- Séries: a tela de detalhes prepara o episódio a assistir (parado no meio, o seguinte ao último visto, ou o 1º) com botão "Assistir T E" e aviso "Preparando…"; tocar nele usa o player já pronto.
+- Conta: ao abrir o app, confere a conta do provedor (pedido pequeno); vencida, bloqueada ou usuário recusado → aviso claro na tela de escolha com "Tentar de novo" e "Sair da conta"; renovou → atualiza o vencimento; sem internet → não acusa nada. Topo mostra "venceu dd/mm/aaaa" quando passou.
+- Revisão de segurança: ver seção acima (nenhuma credencial no projeto/histórico; endereços de provedores trocados por A/B/C).
+- Menu de baixo e leitor de tela (pendência antiga): causa encontrada no emulador de celular Android 11 com recorte de câmera (136 px): a janela que o leitor de tela enxerga termina 268 px acima do fim da tela (barra de navegação 132 + recorte 136), cortando o menu; no tablet (sem recorte) funciona. Tentativa com o modo de recorte padrão não resolveu e foi desfeita. **Aberto**: conferir com o TalkBack num celular real (Android 16 da Glaucia) antes de concluir.
+Testes: login 51/24 ok (inclui conta vencida ao abrir o app); telas tablet 168 ok sem falhas, TV sem falhas, celular só as falhas conhecidas do menu de baixo (tocado pela posição); série pela tela de detalhes tocou o episódio preparado; 0 erros.
