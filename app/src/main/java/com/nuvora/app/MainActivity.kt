@@ -29,6 +29,13 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        // Android 11 ou anterior com recorte de câmera: no modo "sempre" o leitor de tela descontava o recorte
+        // duas vezes e o menu de baixo ficava fora do alcance dele. O modo padrão evita isso (visual igual em pé).
+        if (android.os.Build.VERSION.SDK_INT in 28..30) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
+        }
         val isTv = isTelevision()
         setContent {
             // O mesmo "cérebro" que as telas usam (um só para o app aberto); aqui só lemos a "Letra maior".

@@ -296,9 +296,10 @@ else
   check_log "-e402"; check_log "fim"; key KEYCODE_BACK; sleep 3
   # Série pela tela de detalhes: o episódio a assistir já vem preparado ("Assistir T1 E1").
   tap_tab "Início" 1; sleep 3; tap_text "Séries"; sleep 4
-  tap_card "Série de teste"; wait_text "Assistir T1 E1" 30; shot 44-serie-detalhes
-  adb logcat -c; tap_text "Assistir T1 E1"; sleep 12
-  check_log "-e401"; key KEYCODE_BACK; sleep 3
+  # O E2 já foi visto até o fim acima: o app sugere (e prepara) o último visto, o E2.
+  tap_card "Série de teste"; wait_text "Assistir T1 E2" 30; shot 44-serie-detalhes
+  adb logcat -c; tap_text "Assistir T1 E2"; sleep 12
+  check_log "-e402"; key KEYCODE_BACK; sleep 3
 fi
 
 if adb shell pidof "$PKG" > /dev/null; then echo "app aberto (sem fechar sozinho)" > "$OUT/$NAME-status.txt"; else echo "APP FECHOU" > "$OUT/$NAME-status.txt"; fi
